@@ -1,0 +1,659 @@
+package errorz
+
+import (
+	"errors"
+	"testing"
+)
+
+func TestNew(t *testing.T) {
+	tests := []struct {
+		name          string
+		message       string
+		wantMessage   string
+		wantSourceSys string
+		wantCode      string
+		wantErr       error
+		wantMeta      map[string]any
+	}{
+		{
+			name:          "creates error with message",
+			message:       "test error",
+			wantMessage:   "test error",
+			wantSourceSys: DefaultSourceSystem,
+			wantCode:      "",
+			wantErr:       nil,
+			wantMeta:      nil,
+		},
+		{
+			name:          "creates error with empty message",
+			message:       "",
+			wantMessage:   "",
+			wantSourceSys: DefaultSourceSystem,
+			wantCode:      "",
+			wantErr:       nil,
+			wantMeta:      nil,
+		},
+		{
+			name:          "creates error with special characters",
+			message:       "error: invalid input @#$%",
+			wantMessage:   "error: invalid input @#$%",
+			wantSourceSys: DefaultSourceSystem,
+			wantCode:      "",
+			wantErr:       nil,
+			wantMeta:      nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := New(tt.message)
+			if got.Message != tt.wantMessage {
+				t.Errorf("New().Message = %v, want %v", got.Message, tt.wantMessage)
+			}
+			if got.SourceSystem != tt.wantSourceSys {
+				t.Errorf("New().SourceSystem = %v, want %v", got.SourceSystem, tt.wantSourceSys)
+			}
+			if got.Code != tt.wantCode {
+				t.Errorf("New().Code = %v, want %v", got.Code, tt.wantCode)
+			}
+			if !errors.Is(got.Err, tt.wantErr) && (got.Err != nil || tt.wantErr != nil) {
+				t.Errorf("New().Err = %v, want %v", got.Err, tt.wantErr)
+			}
+			if got.Meta == nil && tt.wantMeta != nil {
+				t.Errorf("New().Meta = nil, want %v", tt.wantMeta)
+			}
+		})
+	}
+}
+
+func TestWrap(t *testing.T) {
+	standardErr := errors.New("standard error")
+	innerErr := errors.New("inner error")
+
+	tests := []struct {
+		name          string
+		err           error
+		wantSourceSys string
+		wantErr       error
+		wantMessage   string
+		wantCode      string
+	}{
+		{
+			name:          "wraps standard error",
+			err:           standardErr,
+			wantSourceSys: DefaultSourceSystem,
+			wantErr:       standardErr,
+			wantMessage:   "",
+			wantCode:      "",
+		},
+		{
+			name:          "wraps nil error",
+			err:           nil,
+			wantSourceSys: DefaultSourceSystem,
+			wantErr:       nil,
+			wantMessage:   "",
+			wantCode:      "",
+		},
+		{
+			name:          "wraps wrapped error",
+			err:           innerErr,
+			wantSourceSys: DefaultSourceSystem,
+			wantErr:       innerErr,
+			wantMessage:   "",
+			wantCode:      "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Wrap(tt.err)
+			if got.SourceSystem != tt.wantSourceSys {
+				t.Errorf("Wrap().SourceSystem = %v, want %v", got.SourceSystem, tt.wantSourceSys)
+			}
+			if tt.err == nil {
+				if got.Err != nil {
+					t.Errorf("Wrap().Err = %v, want nil", got.Err)
+				}
+			} else {
+				//nolint:errorlint // Direct comparison is valid here since we're using the same error instance
+				if got.Err != tt.wantErr {
+					t.Errorf("Wrap().Err = %v, want %v", got.Err, tt.wantErr)
+				}
+			}
+			if got.Message != tt.wantMessage {
+				t.Errorf("Wrap().Message = %v, want %v", got.Message, tt.wantMessage)
+			}
+			if got.Code != tt.wantCode {
+				t.Errorf("Wrap().Code = %v, want %v", got.Code, tt.wantCode)
+			}
+		})
+	}
+}
+
+func TestErrorz_Error(t *testing.T) {
+	tests := []struct {
+		name   string
+		errorz *Errorz
+		want   string
+	}{
+		{
+			name:   "returns message",
+			errorz: New("test message"),
+			want:   "test message",
+		},
+		{
+			name:   "returns empty message",
+			errorz: New(""),
+			want:   "",
+		},
+		{
+			name:   "returns updated message",
+			errorz: New("original").WithMessage("updated"),
+			want:   "updated",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.errorz.Error()
+			if got != tt.want {
+				t.Errorf("Errorz.Error() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestErrorz_Unwrap(t *testing.T) {
+	innerErr := errors.New("inner error")
+	wrappedErr := errors.New("wrapped error")
+
+	tests := []struct {
+		name   string
+		errorz *Errorz
+		want   error
+	}{
+		{
+			name:   "unwraps wrapped error",
+			errorz: Wrap(innerErr),
+			want:   innerErr,
+		},
+		{
+			name:   "returns nil for non-wrapped error",
+			errorz: New("test"),
+			want:   nil,
+		},
+		{
+			name:   "unwraps nested error",
+			errorz: Wrap(wrappedErr),
+			want:   wrappedErr,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.errorz.Unwrap()
+			if tt.want == nil {
+				if got != nil {
+					t.Errorf("Errorz.Unwrap() = %v, want nil", got)
+				}
+			} else if !errors.Is(got, tt.want) {
+				t.Errorf("Errorz.Unwrap() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestErrorz_Is(t *testing.T) {
+	targetErr := errors.New("target error")
+	otherErr := errors.New("other error")
+
+	tests := []struct {
+		name   string
+		errorz *Errorz
+		target error
+		want   bool
+	}{
+		{
+			name:   "matches wrapped error",
+			errorz: Wrap(targetErr),
+			target: targetErr,
+			want:   true,
+		},
+		{
+			name:   "does not match different error",
+			errorz: Wrap(targetErr),
+			target: otherErr,
+			want:   false,
+		},
+		{
+			name:   "returns false for non-wrapped error",
+			errorz: New("test"),
+			target: targetErr,
+			want:   false,
+		},
+		{
+			name:   "returns false for nil target",
+			errorz: Wrap(targetErr),
+			target: nil,
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.errorz.Is(tt.target)
+			if got != tt.want {
+				t.Errorf("Errorz.Is() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+//nolint:dupl // Test structure is intentionally similar to other With* method tests
+func TestErrorz_WithCode(t *testing.T) {
+	tests := []struct {
+		name      string
+		errorz    *Errorz
+		code      string
+		wantCode  string
+		wantChain bool
+	}{
+		{
+			name:      "sets error code",
+			errorz:    New("test"),
+			code:      "ERR001",
+			wantCode:  "ERR001",
+			wantChain: true,
+		},
+		{
+			name:      "sets empty code",
+			errorz:    New("test"),
+			code:      "",
+			wantCode:  "",
+			wantChain: true,
+		},
+		{
+			name:      "overwrites existing code",
+			errorz:    New("test").WithCode("OLD"),
+			code:      "NEW",
+			wantCode:  "NEW",
+			wantChain: true,
+		},
+		{
+			name:      "allows method chaining",
+			errorz:    New("test"),
+			code:      "CHAIN",
+			wantCode:  "CHAIN",
+			wantChain: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.errorz.WithCode(tt.code)
+			if got.Code != tt.wantCode {
+				t.Errorf("Errorz.WithCode().Code = %v, want %v", got.Code, tt.wantCode)
+			}
+			if tt.wantChain && got != tt.errorz {
+				t.Errorf("Errorz.WithCode() should return same instance for chaining")
+			}
+		})
+	}
+}
+
+func TestErrorz_WithMessage(t *testing.T) {
+	tests := []struct {
+		name        string
+		errorz      *Errorz
+		message     string
+		wantMessage string
+		wantChain   bool
+	}{
+		{
+			name:        "sets error message",
+			errorz:      New("original"),
+			message:     "updated",
+			wantMessage: "updated",
+			wantChain:   true,
+		},
+		{
+			name:        "sets empty message",
+			errorz:      New("original"),
+			message:     "",
+			wantMessage: "",
+			wantChain:   true,
+		},
+		{
+			name:        "overwrites existing message",
+			errorz:      New("old"),
+			message:     "new",
+			wantMessage: "new",
+			wantChain:   true,
+		},
+		{
+			name:        "allows method chaining",
+			errorz:      New("test"),
+			message:     "chained",
+			wantMessage: "chained",
+			wantChain:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.errorz.WithMessage(tt.message)
+			if got.Message != tt.wantMessage {
+				t.Errorf("Errorz.WithMessage().Message = %v, want %v", got.Message, tt.wantMessage)
+			}
+			if tt.wantChain && got != tt.errorz {
+				t.Errorf("Errorz.WithMessage() should return same instance for chaining")
+			}
+		})
+	}
+}
+
+//nolint:dupl // Test structure is intentionally similar to other With* method tests
+func TestErrorz_WithSourceSystem(t *testing.T) {
+	tests := []struct {
+		name          string
+		errorz        *Errorz
+		sourceSystem  string
+		wantSourceSys string
+		wantChain     bool
+	}{
+		{
+			name:          "sets source system",
+			errorz:        New("test"),
+			sourceSystem:  "custom-system",
+			wantSourceSys: "custom-system",
+			wantChain:     true,
+		},
+		{
+			name:          "sets empty source system",
+			errorz:        New("test"),
+			sourceSystem:  "",
+			wantSourceSys: "",
+			wantChain:     true,
+		},
+		{
+			name:          "overwrites existing source system",
+			errorz:        New("test").WithSourceSystem("old"),
+			sourceSystem:  "new",
+			wantSourceSys: "new",
+			wantChain:     true,
+		},
+		{
+			name:          "allows method chaining",
+			errorz:        New("test"),
+			sourceSystem:  "chained",
+			wantSourceSys: "chained",
+			wantChain:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.errorz.WithSourceSystem(tt.sourceSystem)
+			if got.SourceSystem != tt.wantSourceSys {
+				t.Errorf("Errorz.WithSourceSystem().SourceSystem = %v, want %v", got.SourceSystem, tt.wantSourceSys)
+			}
+			if tt.wantChain && got != tt.errorz {
+				t.Errorf("Errorz.WithSourceSystem() should return same instance for chaining")
+			}
+		})
+	}
+}
+
+func TestErrorz_WithMeta(t *testing.T) {
+	tests := []struct {
+		name      string
+		errorz    *Errorz
+		key       string
+		value     any
+		wantMeta  map[string]any
+		wantChain bool
+	}{
+		{
+			name:      "adds metadata to empty meta",
+			errorz:    New("test"),
+			key:       "key1",
+			value:     "value1",
+			wantMeta:  map[string]any{"key1": "value1"},
+			wantChain: true,
+		},
+		{
+			name:      "adds multiple metadata entries",
+			errorz:    New("test").WithMeta("key1", "value1"),
+			key:       "key2",
+			value:     "value2",
+			wantMeta:  map[string]any{"key1": "value1", "key2": "value2"},
+			wantChain: true,
+		},
+		{
+			name:      "overwrites existing metadata key",
+			errorz:    New("test").WithMeta("key1", "old"),
+			key:       "key1",
+			value:     "new",
+			wantMeta:  map[string]any{"key1": "new"},
+			wantChain: true,
+		},
+		{
+			name:      "adds integer metadata",
+			errorz:    New("test"),
+			key:       "count",
+			value:     42,
+			wantMeta:  map[string]any{"count": 42},
+			wantChain: true,
+		},
+		{
+			name:      "adds boolean metadata",
+			errorz:    New("test"),
+			key:       "enabled",
+			value:     true,
+			wantMeta:  map[string]any{"enabled": true},
+			wantChain: true,
+		},
+		{
+			name:      "adds nil metadata",
+			errorz:    New("test"),
+			key:       "nilkey",
+			value:     nil,
+			wantMeta:  map[string]any{"nilkey": nil},
+			wantChain: true,
+		},
+		{
+			name:      "allows method chaining",
+			errorz:    New("test"),
+			key:       "chain",
+			value:     "test",
+			wantMeta:  map[string]any{"chain": "test"},
+			wantChain: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.errorz.WithMeta(tt.key, tt.value)
+			if got.Meta == nil {
+				t.Errorf("Errorz.WithMeta().Meta = nil, want %v", tt.wantMeta)
+				return
+			}
+			if len(got.Meta) != len(tt.wantMeta) {
+				t.Errorf("Errorz.WithMeta().Meta length = %v, want %v", len(got.Meta), len(tt.wantMeta))
+			}
+			for k, v := range tt.wantMeta {
+				if got.Meta[k] != v {
+					t.Errorf("Errorz.WithMeta().Meta[%v] = %v, want %v", k, got.Meta[k], v)
+				}
+			}
+			if tt.wantChain && got != tt.errorz {
+				t.Errorf("Errorz.WithMeta() should return same instance for chaining")
+			}
+		})
+	}
+}
+
+func TestPredefinedErrors(t *testing.T) {
+	tests := []struct {
+		name          string
+		err           *Errorz
+		wantMessage   string
+		wantSourceSys string
+	}{
+		{
+			name:          "ErrNotFound",
+			err:           ErrNotFound,
+			wantMessage:   "not found",
+			wantSourceSys: DefaultSourceSystem,
+		},
+		{
+			name:          "ErrBadRequest",
+			err:           ErrBadRequest,
+			wantMessage:   "bad request",
+			wantSourceSys: DefaultSourceSystem,
+		},
+		{
+			name:          "ErrInternal",
+			err:           ErrInternal,
+			wantMessage:   "internal server error",
+			wantSourceSys: DefaultSourceSystem,
+		},
+		{
+			name:          "ErrUnauthorized",
+			err:           ErrUnauthorized,
+			wantMessage:   "unauthorized",
+			wantSourceSys: DefaultSourceSystem,
+		},
+		{
+			name:          "ErrForbidden",
+			err:           ErrForbidden,
+			wantMessage:   "forbidden",
+			wantSourceSys: DefaultSourceSystem,
+		},
+		{
+			name:          "ErrTooManyRequests",
+			err:           ErrTooManyRequests,
+			wantMessage:   "too many requests",
+			wantSourceSys: DefaultSourceSystem,
+		},
+		{
+			name:          "ErrBadGateway",
+			err:           ErrBadGateway,
+			wantMessage:   "bad gateway",
+			wantSourceSys: DefaultSourceSystem,
+		},
+		{
+			name:          "ErrServiceUnavailable",
+			err:           ErrServiceUnavailable,
+			wantMessage:   "service unavailable",
+			wantSourceSys: DefaultSourceSystem,
+		},
+		{
+			name:          "ErrUnprocessableEntity",
+			err:           ErrUnprocessableEntity,
+			wantMessage:   "unprocessable entity",
+			wantSourceSys: DefaultSourceSystem,
+		},
+		{
+			name:          "ErrConflict",
+			err:           ErrConflict,
+			wantMessage:   "conflict",
+			wantSourceSys: DefaultSourceSystem,
+		},
+		{
+			name:          "ErrPreconditionFailed",
+			err:           ErrPreconditionFailed,
+			wantMessage:   "precondition failed",
+			wantSourceSys: DefaultSourceSystem,
+		},
+		{
+			name:          "ErrPreconditionRequired",
+			err:           ErrPreconditionRequired,
+			wantMessage:   "precondition required",
+			wantSourceSys: DefaultSourceSystem,
+		},
+		{
+			name:          "ErrPreconditionNotMet",
+			err:           ErrPreconditionNotMet,
+			wantMessage:   "precondition not met",
+			wantSourceSys: DefaultSourceSystem,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.err == nil {
+				t.Errorf("%s = nil, want non-nil", tt.name)
+				return
+			}
+			if tt.err.Message != tt.wantMessage {
+				t.Errorf("%s.Message = %v, want %v", tt.name, tt.err.Message, tt.wantMessage)
+			}
+			if tt.err.SourceSystem != tt.wantSourceSys {
+				t.Errorf("%s.SourceSystem = %v, want %v", tt.name, tt.err.SourceSystem, tt.wantSourceSys)
+			}
+		})
+	}
+}
+
+func TestErrorz_MethodChaining(t *testing.T) {
+	tests := []struct {
+		name          string
+		errorz        *Errorz
+		wantMessage   string
+		wantCode      string
+		wantSourceSys string
+		wantMeta      map[string]any
+	}{
+		{
+			name: "chains all methods",
+			errorz: New("test").
+				WithCode("ERR001").
+				WithMessage("chained message").
+				WithSourceSystem("custom").
+				WithMeta("key1", "value1").
+				WithMeta("key2", 42),
+			wantMessage:   "chained message",
+			wantCode:      "ERR001",
+			wantSourceSys: "custom",
+			wantMeta:      map[string]any{"key1": "value1", "key2": 42},
+		},
+		{
+			name: "chains with wrap",
+			errorz: Wrap(errors.New("inner")).
+				WithCode("WRAP001").
+				WithMessage("wrapped").
+				WithSourceSystem("wrapper").
+				WithMeta("wrapped", true),
+			wantMessage:   "wrapped",
+			wantCode:      "WRAP001",
+			wantSourceSys: "wrapper",
+			wantMeta:      map[string]any{"wrapped": true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.errorz.Message != tt.wantMessage {
+				t.Errorf("chained Message = %v, want %v", tt.errorz.Message, tt.wantMessage)
+			}
+			if tt.errorz.Code != tt.wantCode {
+				t.Errorf("chained Code = %v, want %v", tt.errorz.Code, tt.wantCode)
+			}
+			if tt.errorz.SourceSystem != tt.wantSourceSys {
+				t.Errorf("chained SourceSystem = %v, want %v", tt.errorz.SourceSystem, tt.wantSourceSys)
+			}
+			if tt.wantMeta != nil {
+				if tt.errorz.Meta == nil {
+					t.Errorf("chained Meta = nil, want %v", tt.wantMeta)
+					return
+				}
+				for k, v := range tt.wantMeta {
+					if tt.errorz.Meta[k] != v {
+						t.Errorf("chained Meta[%v] = %v, want %v", k, tt.errorz.Meta[k], v)
+					}
+				}
+			}
+		})
+	}
+}
