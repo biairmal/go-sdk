@@ -25,6 +25,35 @@ import (
 	"github.com/spf13/viper"
 )
 
+// readFileAndSubstitute reads path, substitutes env vars in content, and returns
+// the data plus the config type extension (e.g. "yaml", "json").
+func readFileAndSubstitute(path string) (data []byte, ext string, err error) {
+	data, err = os.ReadFile(path)
+	if err != nil {
+		return nil, "", fmt.Errorf("config: read file %q: %w", path, err)
+	}
+	data = SubstituteEnv(data)
+	ext = strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+	if ext == "yml" {
+		ext = "yaml"
+	}
+	return data, ext, nil
+}
+
+// applyConfigToViper either reads the first config or merges subsequent ones.
+func applyConfigToViper(v *viper.Viper, data []byte, path string, initial bool) error {
+	if initial {
+		if err := v.ReadConfig(bytes.NewReader(data)); err != nil {
+			return fmt.Errorf("config: read config %q: %w", path, err)
+		}
+		return nil
+	}
+	if err := v.MergeConfig(bytes.NewReader(data)); err != nil {
+		return fmt.Errorf("config: merge config %q: %w", path, err)
+	}
+	return nil
+}
+
 // Load populates dst from config files and environment. Dst must be a pointer
 // to a struct (possibly nested). Options control .env path and config file
 // paths. Pipeline: load .env (if EnvFile set) → create Viper with AutomaticEnv
@@ -53,26 +82,13 @@ func Load(dst interface{}, opts ...Option) error {
 	}
 
 	for i, path := range o.files {
-		data, err := os.ReadFile(path)
+		data, ext, err := readFileAndSubstitute(path)
 		if err != nil {
-			return fmt.Errorf("config: read file %q: %w", path, err)
-		}
-		data = SubstituteEnv(data)
-
-		ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
-		if ext == "yml" {
-			ext = "yaml"
+			return err
 		}
 		v.SetConfigType(ext)
-
-		if i == 0 {
-			if err := v.ReadConfig(bytes.NewReader(data)); err != nil {
-				return fmt.Errorf("config: read config %q: %w", path, err)
-			}
-		} else {
-			if err := v.MergeConfig(bytes.NewReader(data)); err != nil {
-				return fmt.Errorf("config: merge config %q: %w", path, err)
-			}
+		if err := applyConfigToViper(v, data, path, i == 0); err != nil {
+			return err
 		}
 	}
 

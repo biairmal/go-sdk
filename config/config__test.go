@@ -24,7 +24,7 @@ func TestLoad_singleFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	content := "port: 8080\nname: test\n"
-	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -49,7 +49,7 @@ func TestLoad_envSubstitution(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	content := "database_url: ${DB_URL}\n"
-	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -69,7 +69,7 @@ func TestLoad_envSubstitutionWithDefault(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	content := "database_url: ${MISSING_VAR:postgres://default/host}\n"
-	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -89,10 +89,10 @@ func TestLoad_mergeMultipleFiles(t *testing.T) {
 	dir := t.TempDir()
 	base := filepath.Join(dir, "base.yaml")
 	overlay := filepath.Join(dir, "overlay.yaml")
-	if err := os.WriteFile(base, []byte("port: 8080\nname: base\n"), 0600); err != nil {
+	if err := os.WriteFile(base, []byte("port: 8080\nname: base\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(overlay, []byte("name: overlay\n"), 0600); err != nil {
+	if err := os.WriteFile(overlay, []byte("name: overlay\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -123,7 +123,7 @@ domain:
   name: example.com
   tls: true
 `
-	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -137,7 +137,7 @@ domain:
 	}
 	var dst struct {
 		Handler HandlerOptions `mapstructure:"handler"`
-		Domain  DomainOptions `mapstructure:"domain"`
+		Domain  DomainOptions  `mapstructure:"domain"`
 	}
 	err := Load(&dst, Files(path))
 	if err != nil {
@@ -161,10 +161,10 @@ func TestLoad_envFileBeforeSubstitution(t *testing.T) {
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
-	if err := os.WriteFile(envPath, []byte("INJECTED=from_env\n"), 0600); err != nil {
+	if err := os.WriteFile(envPath, []byte("INJECTED=from_env\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(configPath, []byte("value: ${INJECTED}\n"), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte("value: ${INJECTED}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	defer os.Unsetenv("INJECTED")
@@ -193,7 +193,7 @@ func TestLoad_jsonFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
 	content := `{"port": 9000, "name": "json"}`
-	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

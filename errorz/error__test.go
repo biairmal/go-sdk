@@ -502,19 +502,71 @@ func TestPredefinedErrors(t *testing.T) {
 		wantSourceSys string
 		sentinel      error
 	}{
-		{name: "NotFound", err: NotFound(), wantCode: CodeNotFound, wantMessage: "not found", wantSourceSys: DefaultSourceSystem, sentinel: ErrNotFound},
-		{name: "BadRequest", err: BadRequest(), wantCode: CodeBadRequest, wantMessage: "bad request", wantSourceSys: DefaultSourceSystem, sentinel: ErrBadRequest},
-		{name: "Internal", err: Internal(), wantCode: CodeInternal, wantMessage: "internal server error", wantSourceSys: DefaultSourceSystem, sentinel: ErrInternal},
-		{name: "Unauthorized", err: Unauthorized(), wantCode: CodeUnauthorized, wantMessage: "unauthorized", wantSourceSys: DefaultSourceSystem, sentinel: ErrUnauthorized},
-		{name: "Forbidden", err: Forbidden(), wantCode: CodeForbidden, wantMessage: "forbidden", wantSourceSys: DefaultSourceSystem, sentinel: ErrForbidden},
-		{name: "TooManyRequests", err: TooManyRequests(), wantCode: CodeTooManyRequests, wantMessage: "too many requests", wantSourceSys: DefaultSourceSystem, sentinel: ErrTooManyRequests},
-		{name: "BadGateway", err: BadGateway(), wantCode: CodeBadGateway, wantMessage: "bad gateway", wantSourceSys: DefaultSourceSystem, sentinel: ErrBadGateway},
-		{name: "ServiceUnavailable", err: ServiceUnavailable(), wantCode: CodeServiceUnavailable, wantMessage: "service unavailable", wantSourceSys: DefaultSourceSystem, sentinel: ErrServiceUnavailable},
-		{name: "UnprocessableEntity", err: UnprocessableEntity(), wantCode: CodeUnprocessableEntity, wantMessage: "unprocessable entity", wantSourceSys: DefaultSourceSystem, sentinel: ErrUnprocessableEntity},
-		{name: "Conflict", err: Conflict(), wantCode: CodeConflict, wantMessage: "conflict", wantSourceSys: DefaultSourceSystem, sentinel: ErrConflict},
-		{name: "PreconditionFailed", err: PreconditionFailed(), wantCode: CodePreconditionFailed, wantMessage: "precondition failed", wantSourceSys: DefaultSourceSystem, sentinel: ErrPreconditionFailed},
-		{name: "PreconditionRequired", err: PreconditionRequired(), wantCode: CodePreconditionRequired, wantMessage: "precondition required", wantSourceSys: DefaultSourceSystem, sentinel: ErrPreconditionRequired},
-		{name: "PreconditionNotMet", err: PreconditionNotMet(), wantCode: CodePreconditionNotMet, wantMessage: "precondition not met", wantSourceSys: DefaultSourceSystem, sentinel: ErrPreconditionNotMet},
+		{
+			name: "NotFound", err: NotFound(),
+			wantCode: CodeNotFound, wantMessage: "not found",
+			wantSourceSys: DefaultSourceSystem, sentinel: ErrNotFound,
+		},
+		{
+			name: "BadRequest", err: BadRequest(),
+			wantCode: CodeBadRequest, wantMessage: "bad request",
+			wantSourceSys: DefaultSourceSystem, sentinel: ErrBadRequest,
+		},
+		{
+			name: "Internal", err: Internal(),
+			wantCode: CodeInternal, wantMessage: "internal server error",
+			wantSourceSys: DefaultSourceSystem, sentinel: ErrInternal,
+		},
+		{
+			name: "Unauthorized", err: Unauthorized(),
+			wantCode: CodeUnauthorized, wantMessage: "unauthorized",
+			wantSourceSys: DefaultSourceSystem, sentinel: ErrUnauthorized,
+		},
+		{
+			name: "Forbidden", err: Forbidden(),
+			wantCode: CodeForbidden, wantMessage: "forbidden",
+			wantSourceSys: DefaultSourceSystem, sentinel: ErrForbidden,
+		},
+		{
+			name: "TooManyRequests", err: TooManyRequests(),
+			wantCode: CodeTooManyRequests, wantMessage: "too many requests",
+			wantSourceSys: DefaultSourceSystem, sentinel: ErrTooManyRequests,
+		},
+		{
+			name: "BadGateway", err: BadGateway(),
+			wantCode: CodeBadGateway, wantMessage: "bad gateway",
+			wantSourceSys: DefaultSourceSystem, sentinel: ErrBadGateway,
+		},
+		{
+			name: "ServiceUnavailable", err: ServiceUnavailable(),
+			wantCode: CodeServiceUnavailable, wantMessage: "service unavailable",
+			wantSourceSys: DefaultSourceSystem, sentinel: ErrServiceUnavailable,
+		},
+		{
+			name: "UnprocessableEntity", err: UnprocessableEntity(),
+			wantCode: CodeUnprocessableEntity, wantMessage: "unprocessable entity",
+			wantSourceSys: DefaultSourceSystem, sentinel: ErrUnprocessableEntity,
+		},
+		{
+			name: "Conflict", err: Conflict(),
+			wantCode: CodeConflict, wantMessage: "conflict",
+			wantSourceSys: DefaultSourceSystem, sentinel: ErrConflict,
+		},
+		{
+			name: "PreconditionFailed", err: PreconditionFailed(),
+			wantCode: CodePreconditionFailed, wantMessage: "precondition failed",
+			wantSourceSys: DefaultSourceSystem, sentinel: ErrPreconditionFailed,
+		},
+		{
+			name: "PreconditionRequired", err: PreconditionRequired(),
+			wantCode: CodePreconditionRequired, wantMessage: "precondition required",
+			wantSourceSys: DefaultSourceSystem, sentinel: ErrPreconditionRequired,
+		},
+		{
+			name: "PreconditionNotMet", err: PreconditionNotMet(),
+			wantCode: CodePreconditionNotMet, wantMessage: "precondition not met",
+			wantSourceSys: DefaultSourceSystem, sentinel: ErrPreconditionNotMet,
+		},
 	}
 
 	for _, tt := range tests {

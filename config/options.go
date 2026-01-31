@@ -6,7 +6,7 @@ type options struct {
 	files   []string
 }
 
-// Option configures Load behaviour. Options are applied in order; later
+// Option configures Load behavior. Options are applied in order; later
 // options override earlier ones for the same field.
 type Option func(*options)
 

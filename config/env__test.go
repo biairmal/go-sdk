@@ -34,7 +34,7 @@ func TestLoadEnvFile_loadsAndSetsEnv(t *testing.T) {
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
 	content := "TEST_KEY=test_value\n"
-	if err := os.WriteFile(envPath, []byte(content), 0600); err != nil {
+	if err := os.WriteFile(envPath, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	defer os.Unsetenv("TEST_KEY")
