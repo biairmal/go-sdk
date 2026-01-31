@@ -6,37 +6,27 @@ A custom error type for Go that provides enhanced metadata capabilities, error c
 
 The errorz package extends the standard error interface with support for structured error information, making it suitable for distributed systems, API development, and applications that require rich error context. It implements the error wrapping and unwrapping interfaces defined in the `errors` package, enabling seamless integration with Go's error handling mechanisms.
 
-The package provides a fluent API for building errors with method chaining, predefined error variables for common scenarios, and support for arbitrary metadata. It is designed to be type-safe, performant, and easy to integrate into existing Go applications.
+The package provides a fluent API for building errors with method chaining, predefined error constructors (each returning a new instance) with default code and message, code constants, and sentinel errors for use with `errors.Is`. It is designed to be type-safe, performant, and easy to integrate into existing Go applications.
 
 ## Features
 
 ### Core Capabilities
 
-- **Error Codes**: Machine-readable error codes for programmatic error handling and logging
+- **Error Codes**: Machine-readable error codes for programmatic error handling and logging; constants (e.g. `CodeNotFound`) provide default codes for predefined errors
 - **Source System Identification**: Track which system or service generated the error, useful for distributed architectures
 - **Error Wrapping**: Wrap existing errors while preserving the original error chain
 - **Standard Error Interface**: Full compatibility with Go's `errors` package (`errors.Is`, `errors.As`, `errors.Unwrap`)
 - **Arbitrary Metadata**: Key-value metadata support for additional contextual information
 - **Method Chaining**: Fluent API with `With*` methods that return the receiver for chaining
-- **Predefined Errors**: Common HTTP and application error scenarios available as package variables
+- **Predefined Errors**: Constructors (e.g. `NotFound()`, `BadRequest()`) return a new `*Error` with default code and message; sentinels (e.g. `ErrNotFound`) are used with `errors.Is` for comparison
 
-### Predefined Errors
+### Predefined Errors: Constructors and Constants
 
-The package includes predefined error variables for common scenarios:
+Use **constructors** to create a new error with default code and message (each call returns a new instance, so chaining `WithCode`/`WithMessage` does not mutate shared state):
 
-- `ErrNotFound` (HTTP 404 equivalent)
-- `ErrBadRequest` (HTTP 400 equivalent)
-- `ErrInternal` (HTTP 500 equivalent)
-- `ErrUnauthorized` (HTTP 401 equivalent)
-- `ErrForbidden` (HTTP 403 equivalent)
-- `ErrTooManyRequests` (HTTP 429 equivalent)
-- `ErrBadGateway` (HTTP 502 equivalent)
-- `ErrServiceUnavailable` (HTTP 503 equivalent)
-- `ErrUnprocessableEntity` (HTTP 422 equivalent)
-- `ErrConflict` (HTTP 409 equivalent)
-- `ErrPreconditionFailed` (HTTP 412 equivalent)
-- `ErrPreconditionRequired` (HTTP 428 equivalent)
-- `ErrPreconditionNotMet`
+- `NotFound()`, `BadRequest()`, `Internal()`, `Unauthorized()`, `Forbidden()`, `TooManyRequests()`, `BadGateway()`, `ServiceUnavailable()`, `UnprocessableEntity()`, `Conflict()`, `PreconditionFailed()`, `PreconditionRequired()`, `PreconditionNotMet()`
+
+Use **code constants** for the default codes (e.g. `CodeNotFound`, `CodeBadRequest`). Use **sentinels** (`ErrNotFound`, `ErrBadRequest`, etc.) with `errors.Is(err, errorz.ErrNotFound)` to check error kind. Do not call `With*` on sentinels; use the constructors to create errors you can customise.
 
 ## Limitations
 
@@ -56,9 +46,7 @@ The package includes predefined error variables for common scenarios:
 
 7. **No Error Aggregation**: The package does not provide built-in support for aggregating multiple errors or creating error collections.
 
-8. **Predefined Errors Are Shared**: Predefined errors (e.g. `ErrNotFound`, `ErrBadRequest`) are package-level variables. Calling `WithCode()`, `WithMessage()`, or other `With*` methods on them mutates the same instance. For per-call customisation, create a new error with `New()` or `Wrap()` and set the code/message, or document that predefined errors are used as sentinels without chaining.
-
-9. **Nil Error Handling**: Wrapping a `nil` error with `Wrap()` creates a valid `Error` instance with a `nil` `Err` field. This may not always be the desired behaviour.
+8. **Nil Error Handling**: Wrapping a `nil` error with `Wrap()` creates a valid `Error` instance with a `nil` `Err` field. This may not always be the desired behaviour.
 
 ## Usage
 
@@ -115,16 +103,23 @@ func processData() error {
 
 #### Using Predefined Errors
 
+Use constructors to get a new error with default code and message; chain `With*` to customise. Use sentinels with `errors.Is` to check error kind.
+
 ```go
 func findUser(id int) (*User, error) {
     user, err := db.GetUser(id)
     if err != nil {
-        return nil, errorz.ErrNotFound.
+        return nil, errorz.NotFound().
             WithCode("USER_001").
             WithMessage("user not found").
             WithMeta("user_id", id)
     }
     return user, nil
+}
+
+// Later: check if an error is "not found"
+if errors.Is(err, errorz.ErrNotFound) {
+    // handle not found
 }
 ```
 
@@ -231,7 +226,7 @@ import (
 func getUserHandler(w http.ResponseWriter, r *http.Request) {
     userID := r.URL.Query().Get("id")
     if userID == "" {
-        err := errorz.ErrBadRequest.
+        err := errorz.BadRequest().
             WithCode("MISSING_USER_ID").
             WithMessage("user ID is required")
         writeErrorResponse(w, err, http.StatusBadRequest)
@@ -241,7 +236,7 @@ func getUserHandler(w http.ResponseWriter, r *http.Request) {
     user, err := findUser(userID)
     if err != nil {
         if errors.Is(err, sql.ErrNoRows) {
-            err := errorz.ErrNotFound.
+            err := errorz.NotFound().
                 WithCode("USER_NOT_FOUND").
                 WithMessage("user not found").
                 WithMeta("user_id", userID)
@@ -249,7 +244,7 @@ func getUserHandler(w http.ResponseWriter, r *http.Request) {
             return
         }
         
-        err := errorz.ErrInternal.
+        err := errorz.Internal().
             WithCode("DB_ERROR").
             WithMessage("database error occurred")
         writeErrorResponse(w, err, http.StatusInternalServerError)
@@ -297,7 +292,7 @@ type UserService struct {
 func (s *UserService) CreateUser(ctx context.Context, user *User) error {
     // Validate user
     if user.Email == "" {
-        return errorz.ErrBadRequest.
+        return errorz.BadRequest().
             WithCode("VALIDATION_EMAIL_REQUIRED").
             WithMessage("email is required").
             WithSourceSystem("user-service")
@@ -314,7 +309,7 @@ func (s *UserService) CreateUser(ctx context.Context, user *User) error {
     }
     
     if existing != nil {
-        return errorz.ErrConflict.
+        return errorz.Conflict().
             WithCode("USER_ALREADY_EXISTS").
             WithMessage("user with this email already exists").
             WithSourceSystem("user-service").
@@ -500,25 +495,23 @@ func (e *Error) WithMeta(key string, value any) *Error
 
 Adds a key-value pair to the metadata map and returns the receiver for method chaining. Initialises the `Meta` map if it is `nil`.
 
-### Variables
+### Constants (default error codes)
 
-#### Predefined Errors
+- `CodeNotFound`, `CodeBadRequest`, `CodeInternal`, `CodeUnauthorized`, `CodeForbidden`, `CodeTooManyRequests`, `CodeBadGateway`, `CodeServiceUnavailable`, `CodeUnprocessableEntity`, `CodeConflict`, `CodePreconditionFailed`, `CodePreconditionRequired`, `CodePreconditionNotMet`
 
-- `ErrNotFound`
-- `ErrBadRequest`
-- `ErrInternal`
-- `ErrUnauthorized`
-- `ErrForbidden`
-- `ErrTooManyRequests`
-- `ErrBadGateway`
-- `ErrServiceUnavailable`
-- `ErrUnprocessableEntity`
-- `ErrConflict`
-- `ErrPreconditionFailed`
-- `ErrPreconditionRequired`
-- `ErrPreconditionNotMet`
+### Constructors (predefined errors)
 
-#### DefaultSourceSystem
+Each constructor returns a new `*Error` with default code and message. Use with `With*` for per-call customisation.
+
+- `NotFound()`, `BadRequest()`, `Internal()`, `Unauthorized()`, `Forbidden()`, `TooManyRequests()`, `BadGateway()`, `ServiceUnavailable()`, `UnprocessableEntity()`, `Conflict()`, `PreconditionFailed()`, `PreconditionRequired()`, `PreconditionNotMet()`
+
+### Sentinel errors (for errors.Is)
+
+Use with `errors.Is(err, errorz.ErrNotFound)` etc. Do not call `With*` on sentinels.
+
+- `ErrNotFound`, `ErrBadRequest`, `ErrInternal`, `ErrUnauthorized`, `ErrForbidden`, `ErrTooManyRequests`, `ErrBadGateway`, `ErrServiceUnavailable`, `ErrUnprocessableEntity`, `ErrConflict`, `ErrPreconditionFailed`, `ErrPreconditionRequired`, `ErrPreconditionNotMet`
+
+### DefaultSourceSystem
 
 ```go
 var DefaultSourceSystem = "application"

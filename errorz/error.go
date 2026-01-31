@@ -17,60 +17,18 @@
 //		WithCode("ERR_DB_CONN").
 //		WithMessage("failed to connect to database")
 //
-//	// Use predefined errors
+//	// Use predefined error constructors (each call returns a new instance)
 //	if resource == nil {
-//		return Error.ErrNotFound.WithCode("RESOURCE_001")
+//		return errorz.NotFound().WithCode("RESOURCE_001")
 //	}
+//	// Use errors.Is with sentinels for comparison
+//	if errors.Is(err, errorz.ErrNotFound) { ... }
 package errorz
 
 import (
 	"errors"
 	"fmt"
 	"strings"
-)
-
-// Predefined error variables for common HTTP and application error scenarios.
-// These errors can be used directly or extended with additional metadata using
-// the With* methods.
-var (
-	// ErrNotFound represents a "not found" error (HTTP 404 equivalent).
-	ErrNotFound = New("not found")
-
-	// ErrBadRequest represents a "bad request" error (HTTP 400 equivalent).
-	ErrBadRequest = New("bad request")
-
-	// ErrInternal represents an "internal server error" (HTTP 500 equivalent).
-	ErrInternal = New("internal server error")
-
-	// ErrUnauthorized represents an "unauthorized" error (HTTP 401 equivalent).
-	ErrUnauthorized = New("unauthorized")
-
-	// ErrForbidden represents a "forbidden" error (HTTP 403 equivalent).
-	ErrForbidden = New("forbidden")
-
-	// ErrTooManyRequests represents a "too many requests" error (HTTP 429 equivalent).
-	ErrTooManyRequests = New("too many requests")
-
-	// ErrBadGateway represents a "bad gateway" error (HTTP 502 equivalent).
-	ErrBadGateway = New("bad gateway")
-
-	// ErrServiceUnavailable represents a "service unavailable" error (HTTP 503 equivalent).
-	ErrServiceUnavailable = New("service unavailable")
-
-	// ErrUnprocessableEntity represents an "unprocessable entity" error (HTTP 422 equivalent).
-	ErrUnprocessableEntity = New("unprocessable entity")
-
-	// ErrConflict represents a "conflict" error (HTTP 409 equivalent).
-	ErrConflict = New("conflict")
-
-	// ErrPreconditionFailed represents a "precondition failed" error (HTTP 412 equivalent).
-	ErrPreconditionFailed = New("precondition failed")
-
-	// ErrPreconditionRequired represents a "precondition required" error (HTTP 428 equivalent).
-	ErrPreconditionRequired = New("precondition required")
-
-	// ErrPreconditionNotMet represents a "precondition not met" error.
-	ErrPreconditionNotMet = New("precondition not met")
 )
 
 // DefaultSourceSystem is the default value used for the SourceSystem field
@@ -257,4 +215,110 @@ func (e *Error) WithMeta(key string, value any) *Error {
 	}
 	e.Meta[key] = value
 	return e
+}
+
+// Default error codes for predefined errors. Use with constructor-returned
+// errors or when building errors with New/Wrap.
+const (
+	CodeNotFound             = "ERR_NOT_FOUND"
+	CodeBadRequest           = "ERR_BAD_REQUEST"
+	CodeInternal             = "ERR_INTERNAL"
+	CodeUnauthorized         = "ERR_UNAUTHORIZED"
+	CodeForbidden            = "ERR_FORBIDDEN"
+	CodeTooManyRequests      = "ERR_TOO_MANY_REQUESTS"
+	CodeBadGateway           = "ERR_BAD_GATEWAY"
+	CodeServiceUnavailable   = "ERR_SERVICE_UNAVAILABLE"
+	CodeUnprocessableEntity  = "ERR_UNPROCESSABLE_ENTITY"
+	CodeConflict             = "ERR_CONFLICT"
+	CodePreconditionFailed   = "ERR_PRECONDITION_FAILED"
+	CodePreconditionRequired = "ERR_PRECONDITION_REQUIRED"
+	CodePreconditionNotMet   = "ERR_PRECONDITION_NOT_MET"
+)
+
+// Sentinel errors for use with errors.Is. Do not call With* on these; use
+// the constructors (NotFound(), BadRequest(), etc.) to create new *Error
+// instances with default code and message.
+var (
+	ErrNotFound             = errSentinel{code: CodeNotFound, msg: "not found"}
+	ErrBadRequest           = errSentinel{code: CodeBadRequest, msg: "bad request"}
+	ErrInternal             = errSentinel{code: CodeInternal, msg: "internal server error"}
+	ErrUnauthorized         = errSentinel{code: CodeUnauthorized, msg: "unauthorized"}
+	ErrForbidden            = errSentinel{code: CodeForbidden, msg: "forbidden"}
+	ErrTooManyRequests      = errSentinel{code: CodeTooManyRequests, msg: "too many requests"}
+	ErrBadGateway           = errSentinel{code: CodeBadGateway, msg: "bad gateway"}
+	ErrServiceUnavailable   = errSentinel{code: CodeServiceUnavailable, msg: "service unavailable"}
+	ErrUnprocessableEntity  = errSentinel{code: CodeUnprocessableEntity, msg: "unprocessable entity"}
+	ErrConflict             = errSentinel{code: CodeConflict, msg: "conflict"}
+	ErrPreconditionFailed   = errSentinel{code: CodePreconditionFailed, msg: "precondition failed"}
+	ErrPreconditionRequired = errSentinel{code: CodePreconditionRequired, msg: "precondition required"}
+	ErrPreconditionNotMet   = errSentinel{code: CodePreconditionNotMet, msg: "precondition not met"}
+)
+
+type errSentinel struct{ code, msg string }
+
+func (e errSentinel) Error() string { return e.msg }
+
+// NotFound returns a new "not found" error with default code and message (HTTP 404 equivalent).
+func NotFound() *Error {
+	return &Error{Code: CodeNotFound, Message: "not found", Err: ErrNotFound, SourceSystem: DefaultSourceSystem}
+}
+
+// BadRequest returns a new "bad request" error with default code and message (HTTP 400 equivalent).
+func BadRequest() *Error {
+	return &Error{Code: CodeBadRequest, Message: "bad request", Err: ErrBadRequest, SourceSystem: DefaultSourceSystem}
+}
+
+// Internal returns a new "internal server error" with default code and message (HTTP 500 equivalent).
+func Internal() *Error {
+	return &Error{Code: CodeInternal, Message: "internal server error", Err: ErrInternal, SourceSystem: DefaultSourceSystem}
+}
+
+// Unauthorized returns a new "unauthorized" error with default code and message (HTTP 401 equivalent).
+func Unauthorized() *Error {
+	return &Error{Code: CodeUnauthorized, Message: "unauthorized", Err: ErrUnauthorized, SourceSystem: DefaultSourceSystem}
+}
+
+// Forbidden returns a new "forbidden" error with default code and message (HTTP 403 equivalent).
+func Forbidden() *Error {
+	return &Error{Code: CodeForbidden, Message: "forbidden", Err: ErrForbidden, SourceSystem: DefaultSourceSystem}
+}
+
+// TooManyRequests returns a new "too many requests" error with default code and message (HTTP 429 equivalent).
+func TooManyRequests() *Error {
+	return &Error{Code: CodeTooManyRequests, Message: "too many requests", Err: ErrTooManyRequests, SourceSystem: DefaultSourceSystem}
+}
+
+// BadGateway returns a new "bad gateway" error with default code and message (HTTP 502 equivalent).
+func BadGateway() *Error {
+	return &Error{Code: CodeBadGateway, Message: "bad gateway", Err: ErrBadGateway, SourceSystem: DefaultSourceSystem}
+}
+
+// ServiceUnavailable returns a new "service unavailable" error with default code and message (HTTP 503 equivalent).
+func ServiceUnavailable() *Error {
+	return &Error{Code: CodeServiceUnavailable, Message: "service unavailable", Err: ErrServiceUnavailable, SourceSystem: DefaultSourceSystem}
+}
+
+// UnprocessableEntity returns a new "unprocessable entity" error with default code and message (HTTP 422 equivalent).
+func UnprocessableEntity() *Error {
+	return &Error{Code: CodeUnprocessableEntity, Message: "unprocessable entity", Err: ErrUnprocessableEntity, SourceSystem: DefaultSourceSystem}
+}
+
+// Conflict returns a new "conflict" error with default code and message (HTTP 409 equivalent).
+func Conflict() *Error {
+	return &Error{Code: CodeConflict, Message: "conflict", Err: ErrConflict, SourceSystem: DefaultSourceSystem}
+}
+
+// PreconditionFailed returns a new "precondition failed" error with default code and message (HTTP 412 equivalent).
+func PreconditionFailed() *Error {
+	return &Error{Code: CodePreconditionFailed, Message: "precondition failed", Err: ErrPreconditionFailed, SourceSystem: DefaultSourceSystem}
+}
+
+// PreconditionRequired returns a new "precondition required" error with default code and message (HTTP 428 equivalent).
+func PreconditionRequired() *Error {
+	return &Error{Code: CodePreconditionRequired, Message: "precondition required", Err: ErrPreconditionRequired, SourceSystem: DefaultSourceSystem}
+}
+
+// PreconditionNotMet returns a new "precondition not met" error with default code and message.
+func PreconditionNotMet() *Error {
+	return &Error{Code: CodePreconditionNotMet, Message: "precondition not met", Err: ErrPreconditionNotMet, SourceSystem: DefaultSourceSystem}
 }
