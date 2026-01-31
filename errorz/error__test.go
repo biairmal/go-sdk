@@ -130,10 +130,10 @@ func TestWrap(t *testing.T) {
 	}
 }
 
-func TestErrorz_Error(t *testing.T) {
+func TestError_Error(t *testing.T) {
 	tests := []struct {
 		name   string
-		errorz *Errorz
+		errorz *Error
 		want   string
 	}{
 		{
@@ -157,19 +157,19 @@ func TestErrorz_Error(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.errorz.Error()
 			if got != tt.want {
-				t.Errorf("Errorz.Error() = %v, want %v", got, tt.want)
+				t.Errorf("Error.Error() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestErrorz_Unwrap(t *testing.T) {
+func TestError_Unwrap(t *testing.T) {
 	innerErr := errors.New("inner error")
 	wrappedErr := errors.New("wrapped error")
 
 	tests := []struct {
 		name   string
-		errorz *Errorz
+		errorz *Error
 		want   error
 	}{
 		{
@@ -194,22 +194,22 @@ func TestErrorz_Unwrap(t *testing.T) {
 			got := tt.errorz.Unwrap()
 			if tt.want == nil {
 				if got != nil {
-					t.Errorf("Errorz.Unwrap() = %v, want nil", got)
+					t.Errorf("Error.Unwrap() = %v, want nil", got)
 				}
 			} else if !errors.Is(got, tt.want) {
-				t.Errorf("Errorz.Unwrap() = %v, want %v", got, tt.want)
+				t.Errorf("Error.Unwrap() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestErrorz_Is(t *testing.T) {
+func TestError_Is(t *testing.T) {
 	targetErr := errors.New("target error")
 	otherErr := errors.New("other error")
 
 	tests := []struct {
 		name   string
-		errorz *Errorz
+		errorz *Error
 		target error
 		want   bool
 	}{
@@ -243,17 +243,17 @@ func TestErrorz_Is(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.errorz.Is(tt.target)
 			if got != tt.want {
-				t.Errorf("Errorz.Is() = %v, want %v", got, tt.want)
+				t.Errorf("Error.Is() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
 //nolint:dupl // Test structure is intentionally similar to other With* method tests
-func TestErrorz_WithCode(t *testing.T) {
+func TestError_WithCode(t *testing.T) {
 	tests := []struct {
 		name      string
-		errorz    *Errorz
+		errorz    *Error
 		code      string
 		wantCode  string
 		wantChain bool
@@ -292,19 +292,19 @@ func TestErrorz_WithCode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.errorz.WithCode(tt.code)
 			if got.Code != tt.wantCode {
-				t.Errorf("Errorz.WithCode().Code = %v, want %v", got.Code, tt.wantCode)
+				t.Errorf("Error.WithCode().Code = %v, want %v", got.Code, tt.wantCode)
 			}
 			if tt.wantChain && got != tt.errorz {
-				t.Errorf("Errorz.WithCode() should return same instance for chaining")
+				t.Errorf("Error.WithCode() should return same instance for chaining")
 			}
 		})
 	}
 }
 
-func TestErrorz_WithMessage(t *testing.T) {
+func TestError_WithMessage(t *testing.T) {
 	tests := []struct {
 		name        string
-		errorz      *Errorz
+		errorz      *Error
 		message     string
 		wantMessage string
 		wantChain   bool
@@ -343,20 +343,20 @@ func TestErrorz_WithMessage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.errorz.WithMessage(tt.message)
 			if got.Message != tt.wantMessage {
-				t.Errorf("Errorz.WithMessage().Message = %v, want %v", got.Message, tt.wantMessage)
+				t.Errorf("Error.WithMessage().Message = %v, want %v", got.Message, tt.wantMessage)
 			}
 			if tt.wantChain && got != tt.errorz {
-				t.Errorf("Errorz.WithMessage() should return same instance for chaining")
+				t.Errorf("Error.WithMessage() should return same instance for chaining")
 			}
 		})
 	}
 }
 
 //nolint:dupl // Test structure is intentionally similar to other With* method tests
-func TestErrorz_WithSourceSystem(t *testing.T) {
+func TestError_WithSourceSystem(t *testing.T) {
 	tests := []struct {
 		name          string
-		errorz        *Errorz
+		errorz        *Error
 		sourceSystem  string
 		wantSourceSys string
 		wantChain     bool
@@ -395,19 +395,19 @@ func TestErrorz_WithSourceSystem(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.errorz.WithSourceSystem(tt.sourceSystem)
 			if got.SourceSystem != tt.wantSourceSys {
-				t.Errorf("Errorz.WithSourceSystem().SourceSystem = %v, want %v", got.SourceSystem, tt.wantSourceSys)
+				t.Errorf("Error.WithSourceSystem().SourceSystem = %v, want %v", got.SourceSystem, tt.wantSourceSys)
 			}
 			if tt.wantChain && got != tt.errorz {
-				t.Errorf("Errorz.WithSourceSystem() should return same instance for chaining")
+				t.Errorf("Error.WithSourceSystem() should return same instance for chaining")
 			}
 		})
 	}
 }
 
-func TestErrorz_WithMeta(t *testing.T) {
+func TestError_WithMeta(t *testing.T) {
 	tests := []struct {
 		name      string
-		errorz    *Errorz
+		errorz    *Error
 		key       string
 		value     any
 		wantMeta  map[string]any
@@ -475,19 +475,19 @@ func TestErrorz_WithMeta(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.errorz.WithMeta(tt.key, tt.value)
 			if got.Meta == nil {
-				t.Errorf("Errorz.WithMeta().Meta = nil, want %v", tt.wantMeta)
+				t.Errorf("Error.WithMeta().Meta = nil, want %v", tt.wantMeta)
 				return
 			}
 			if len(got.Meta) != len(tt.wantMeta) {
-				t.Errorf("Errorz.WithMeta().Meta length = %v, want %v", len(got.Meta), len(tt.wantMeta))
+				t.Errorf("Error.WithMeta().Meta length = %v, want %v", len(got.Meta), len(tt.wantMeta))
 			}
 			for k, v := range tt.wantMeta {
 				if got.Meta[k] != v {
-					t.Errorf("Errorz.WithMeta().Meta[%v] = %v, want %v", k, got.Meta[k], v)
+					t.Errorf("Error.WithMeta().Meta[%v] = %v, want %v", k, got.Meta[k], v)
 				}
 			}
 			if tt.wantChain && got != tt.errorz {
-				t.Errorf("Errorz.WithMeta() should return same instance for chaining")
+				t.Errorf("Error.WithMeta() should return same instance for chaining")
 			}
 		})
 	}
@@ -496,7 +496,7 @@ func TestErrorz_WithMeta(t *testing.T) {
 func TestPredefinedErrors(t *testing.T) {
 	tests := []struct {
 		name          string
-		err           *Errorz
+		err           *Error
 		wantMessage   string
 		wantSourceSys string
 	}{
@@ -596,10 +596,10 @@ func TestPredefinedErrors(t *testing.T) {
 	}
 }
 
-func TestErrorz_MethodChaining(t *testing.T) {
+func TestError_MethodChaining(t *testing.T) {
 	tests := []struct {
 		name          string
-		errorz        *Errorz
+		errorz        *Error
 		wantMessage   string
 		wantCode      string
 		wantSourceSys string

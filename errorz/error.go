@@ -1,4 +1,4 @@
-// Package errorz provides a custom error type with enhanced metadata capabilities.
+// Package Error provides a custom error type with enhanced metadata capabilities.
 // It extends the standard error interface with support for error codes, source system
 // identification, and arbitrary metadata. The package implements the error wrapping
 // and unwrapping interfaces defined in the errors package, enabling seamless integration
@@ -7,23 +7,26 @@
 // Example usage:
 //
 //	// Create a new error
-//	err := errorz.New("resource not found").
+//	err := Error.New("resource not found").
 //		WithCode("ERR_NOT_FOUND").
 //		WithSourceSystem("user-service").
 //		WithMeta("resource_id", 12345)
 //
 //	// Wrap an existing error
-//	wrappedErr := errorz.Wrap(errors.New("database connection failed")).
+//	wrappedErr := Error.Wrap(errors.New("database connection failed")).
 //		WithCode("ERR_DB_CONN").
 //		WithMessage("failed to connect to database")
 //
 //	// Use predefined errors
 //	if resource == nil {
-//		return errorz.ErrNotFound.WithCode("RESOURCE_001")
+//		return Error.ErrNotFound.WithCode("RESOURCE_001")
 //	}
 package errorz
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // Predefined error variables for common HTTP and application error scenarios.
 // These errors can be used directly or extended with additional metadata using
@@ -70,14 +73,14 @@ var (
 )
 
 // DefaultSourceSystem is the default value used for the SourceSystem field
-// when creating new Errorz instances via New or Wrap.
+// when creating new Error instances via New or Wrap.
 var DefaultSourceSystem = "application"
 
-// Errorz represents a custom error type with additional metadata capabilities.
+// Error represents a custom error type with additional metadata capabilities.
 // It implements the error interface and supports error wrapping/unwrapping
 // as defined in the errors package.
 //
-// The Errorz type provides:
+// The Error type provides:
 //   - Code: A machine-readable error code for programmatic error handling
 //   - Message: A human-readable error message
 //   - SourceSystem: The system or service that generated the error
@@ -85,9 +88,7 @@ var DefaultSourceSystem = "application"
 //   - Meta: Arbitrary key-value metadata for additional context
 //
 // All With* methods return the receiver to enable method chaining.
-//
-//nolint:errname // Errorz is an established name in this package
-type Errorz struct {
+type Error struct {
 	// Code is a machine-readable error code that can be used for
 	// programmatic error handling and logging.
 	Code string
@@ -110,26 +111,47 @@ type Errorz struct {
 	Meta map[string]any
 }
 
-// Error returns the error message, implementing the error interface.
-// This method satisfies the error interface requirement and is used when
-// the error is converted to a string or printed.
-func (e *Errorz) Error() string {
-	return e.Message
+// Error returns a string representation of the error.
+// The string includes the error code, source system, message, metadata, and original error.
+// The string is formatted as:
+// "Code: <code>, SourceSystem: <sourceSystem>, Message: <message>, Meta: <meta>, Original Error: <originalError>"
+// If the error code, source system, message, or metadata is not set, it is not included in the string.
+// If the original error is not set, it is not included in the string.
+func (e *Error) Error() string {
+	var message string
+
+	if e.Code != "" {
+		message += fmt.Sprintf("Code: %s, ", e.Code)
+	}
+	if e.SourceSystem != "" {
+		message += fmt.Sprintf("SourceSystem: %s, ", e.SourceSystem)
+	}
+	if e.Message != "" {
+		message += fmt.Sprintf("Message: %s, ", e.Message)
+	}
+	if len(e.Meta) > 0 {
+		message += fmt.Sprintf("Meta: %v", e.Meta)
+	}
+	if e.Err != nil {
+		message += fmt.Sprintf(", Original Error: %v", e.Err.Error())
+	}
+
+	return message
 }
 
 // Unwrap returns the underlying error that was wrapped, if any.
 // This method implements the Unwrap interface defined in the errors package,
-// enabling the use of errors.Is() and errors.As() with Errorz instances.
+// enabling the use of errors.Is() and errors.As() with Error instances.
 //
-// If the Errorz was created via New() or does not wrap an error, Unwrap returns nil.
-func (e *Errorz) Unwrap() error {
+// If the Error was created via New() or does not wrap an error, Unwrap returns nil.
+func (e *Error) Unwrap() error {
 	return e.Err
 }
 
-// Wrap wraps an existing error into an Errorz instance.
+// Wrap wraps an existing error into an Error instance.
 // The wrapped error can be accessed later via Unwrap() or checked using Is().
 //
-// The resulting Errorz will have:
+// The resulting Error will have:
 //   - Err set to the provided error
 //   - SourceSystem set to DefaultSourceSystem
 //   - Empty Message and Code fields (can be set using With* methods)
@@ -137,41 +159,41 @@ func (e *Errorz) Unwrap() error {
 // Example:
 //
 //	err := errors.New("database connection failed")
-//	wrapped := errorz.Wrap(err).
+//	wrapped := Error.Wrap(err).
 //		WithCode("DB_CONN_ERR").
 //		WithMessage("failed to connect to database")
-func Wrap(err error) *Errorz {
-	return &Errorz{
+func Wrap(err error) *Error {
+	return &Error{
 		Err:          err,
 		SourceSystem: DefaultSourceSystem,
 	}
 }
 
-// Is checks if the Errorz wraps an error that matches the target error.
+// Is checks if the Error wraps an error that matches the target error.
 // This method implements the Is interface defined in the errors package,
-// enabling the use of errors.Is() with Errorz instances.
+// enabling the use of errors.Is() with Error instances.
 //
 // The method uses errors.Is() to check if the wrapped error (Err) matches
 // the target error, supporting error wrapping chains.
 //
-// If the Errorz does not wrap an error, Is returns false.
-func (e *Errorz) Is(target error) bool {
+// If the Error does not wrap an error, Is returns false.
+func (e *Error) Is(target error) bool {
 	return errors.Is(e.Err, target)
 }
 
-// New creates a new Errorz instance with the specified message.
-// The resulting Errorz will have:
+// New creates a new Error instance with the specified message.
+// The resulting Error will have:
 //   - Message set to the provided message
 //   - SourceSystem set to DefaultSourceSystem
 //   - Empty Code and Err fields (can be set using With* methods)
 //
 // Example:
 //
-//	err := errorz.New("resource not found").
+//	err := Error.New("resource not found").
 //		WithCode("RESOURCE_001").
 //		WithSourceSystem("user-service")
-func New(message string) *Errorz {
-	return &Errorz{
+func New(message string) *Error {
+	return &Error{
 		Message:      message,
 		SourceSystem: DefaultSourceSystem,
 	}
@@ -183,8 +205,8 @@ func New(message string) *Errorz {
 //
 // Example:
 //
-//	err := errorz.New("validation failed").WithCode("VALIDATION_001")
-func (e *Errorz) WithCode(code string) *Errorz {
+//	err := Error.New("validation failed").WithCode("VALIDATION_001")
+func (e *Error) WithCode(code string) *Error {
 	e.Code = code
 	return e
 }
@@ -194,8 +216,8 @@ func (e *Errorz) WithCode(code string) *Errorz {
 //
 // Example:
 //
-//	err := errorz.New("original message").WithMessage("updated message")
-func (e *Errorz) WithMessage(message string) *Errorz {
+//	err := Error.New("original message").WithMessage("updated message")
+func (e *Error) WithMessage(message string) *Error {
 	e.Message = message
 	return e
 }
@@ -206,9 +228,9 @@ func (e *Errorz) WithMessage(message string) *Errorz {
 //
 // Example:
 //
-//	err := errorz.New("error occurred").
+//	err := Error.New("error occurred").
 //		WithSourceSystem("payment-service")
-func (e *Errorz) WithSourceSystem(sourceSystem string) *Errorz {
+func (e *Error) WithSourceSystem(sourceSystem string) *Error {
 	e.SourceSystem = sourceSystem
 	return e
 }
@@ -224,11 +246,11 @@ func (e *Errorz) WithSourceSystem(sourceSystem string) *Errorz {
 //
 // Example:
 //
-//	err := errorz.New("operation failed").
+//	err := Error.New("operation failed").
 //		WithMeta("request_id", "abc123").
 //		WithMeta("user_id", 456).
 //		WithMeta("timestamp", time.Now())
-func (e *Errorz) WithMeta(key string, value any) *Errorz {
+func (e *Error) WithMeta(key string, value any) *Error {
 	if e.Meta == nil {
 		e.Meta = make(map[string]any)
 	}

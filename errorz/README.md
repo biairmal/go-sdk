@@ -42,9 +42,9 @@ The package includes predefined error variables for common scenarios:
 
 ### General Limitations
 
-1. **Error() Method**: The `Error()` method only returns the `Message` field. Error codes, source system, and metadata are not included in the string representation. To access these fields, you must access the struct fields directly.
+1. **Error() String Format**: The `Error()` method returns a concatenated string of all non-empty fields (Code, SourceSystem, Message, Meta, Original Error). There is no structured format (e.g. JSON); for API responses or logging you may still need to access struct fields directly.
 
-2. **No Automatic Serialisation**: When errors are printed or logged, metadata and error codes are not automatically included in the output. You must explicitly format the error to include this information.
+2. **No Structured Serialisation**: The package does not provide JSON or other structured serialisation. For API responses, you must build the response payload from the struct fields (Code, Message, SourceSystem, Meta) yourself.
 
 3. **No HTTP Status Code Mapping**: The package does not provide built-in mapping between error codes and HTTP status codes. This mapping must be implemented separately in your application layer.
 
@@ -56,7 +56,9 @@ The package includes predefined error variables for common scenarios:
 
 7. **No Error Aggregation**: The package does not provide built-in support for aggregating multiple errors or creating error collections.
 
-8. **Nil Error Handling**: Wrapping a `nil` error with `Wrap()` creates a valid `Errorz` instance with a `nil` `Err` field. This may not always be the desired behaviour.
+8. **Predefined Errors Are Shared**: Predefined errors (e.g. `ErrNotFound`, `ErrBadRequest`) are package-level variables. Calling `WithCode()`, `WithMessage()`, or other `With*` methods on them mutates the same instance. For per-call customisation, create a new error with `New()` or `Wrap()` and set the code/message, or document that predefined errors are used as sentinels without chaining.
+
+9. **Nil Error Handling**: Wrapping a `nil` error with `Wrap()` creates a valid `Error` instance with a `nil` `Err` field. This may not always be the desired behaviour.
 
 ## Usage
 
@@ -80,9 +82,9 @@ import (
 func main() {
     // Create a simple error
     err := errorz.New("resource not found")
-    
+
     // Create error with code and metadata
-    err := errorz.New("validation failed").
+    err = errorz.New("validation failed").
         WithCode("VALIDATION_001").
         WithSourceSystem("user-service").
         WithMeta("field", "email").
@@ -137,8 +139,8 @@ import (
 )
 
 func handleError(err error) {
-    // Check if error is a specific Errorz instance
-    var errz *errorz.Errorz
+    // Check if error is a specific Error instance
+    var errz *errorz.Error
     if errors.As(err, &errz) {
         fmt.Printf("Error Code: %s\n", errz.Code)
         fmt.Printf("Source System: %s\n", errz.SourceSystem)
@@ -152,7 +154,7 @@ func handleError(err error) {
 }
 ```
 
-#### Using errors.Is with Errorz
+#### Using errors.Is with Error
 
 ```go
 targetErr := errors.New("target error")
@@ -162,7 +164,7 @@ if errors.Is(wrappedErr, targetErr) {
     // This will be true
 }
 
-// Errorz also implements Is method directly
+// Error also implements Is method directly
 if wrappedErr.Is(targetErr) {
     // This will also be true
 }
@@ -257,7 +259,7 @@ func getUserHandler(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(user)
 }
 
-func writeErrorResponse(w http.ResponseWriter, err *errorz.Errorz, statusCode int) {
+func writeErrorResponse(w http.ResponseWriter, err *errorz.Error, statusCode int) {
     w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(statusCode)
     
@@ -343,7 +345,7 @@ import (
 )
 
 func handleError(log logger.Logger, err error) {
-    var errz *errorz.Errorz
+    var errz *errorz.Error
     if errors.As(err, &errz) {
         log.ErrorWithContext(ctx, "Error occurred",
             logger.F("error_code", errz.Code),
@@ -408,10 +410,10 @@ func TestService_HandleError(t *testing.T) {
 
 ### Types
 
-#### Errorz
+#### Error
 
 ```go
-type Errorz struct {
+type Error struct {
     Code         string
     Message      string
     SourceSystem string
@@ -420,40 +422,40 @@ type Errorz struct {
 }
 ```
 
-The main error type that implements the `error` interface and supports error wrapping.
+The main error type that implements the `error` interface and supports error wrapping. Exported as `Error` (package-qualified: `errorz.Error`).
 
 ### Functions
 
 #### New
 
 ```go
-func New(message string) *Errorz
+func New(message string) *Error
 ```
 
-Creates a new `Errorz` instance with the specified message. The `SourceSystem` is set to `DefaultSourceSystem`.
+Creates a new `Error` instance with the specified message. The `SourceSystem` is set to `DefaultSourceSystem`.
 
 #### Wrap
 
 ```go
-func Wrap(err error) *Errorz
+func Wrap(err error) *Error
 ```
 
-Wraps an existing error into an `Errorz` instance. The wrapped error can be accessed via `Unwrap()` or checked using `errors.Is()`.
+Wraps an existing error into an `Error` instance. The wrapped error can be accessed via `Unwrap()` or checked using `errors.Is()`.
 
 ### Methods
 
 #### Error
 
 ```go
-func (e *Errorz) Error() string
+func (e *Error) Error() string
 ```
 
-Returns the error message, implementing the `error` interface.
+Returns a string representation of the error. The string includes Code, SourceSystem, Message, Meta, and Original Error when set. Fields that are empty are omitted. Format: `"Code: <code>, SourceSystem: <sourceSystem>, Message: <message>, Meta: <meta>, Original Error: <originalError>"`.
 
 #### Unwrap
 
 ```go
-func (e *Errorz) Unwrap() error
+func (e *Error) Unwrap() error
 ```
 
 Returns the underlying error that was wrapped, if any. Implements the `Unwrap` interface for `errors.Is()` and `errors.As()`.
@@ -461,15 +463,15 @@ Returns the underlying error that was wrapped, if any. Implements the `Unwrap` i
 #### Is
 
 ```go
-func (e *Errorz) Is(target error) bool
+func (e *Error) Is(target error) bool
 ```
 
-Checks if the `Errorz` wraps an error that matches the target error. Implements the `Is` interface for `errors.Is()`.
+Checks if the `Error` wraps an error that matches the target error. Implements the `Is` interface for `errors.Is()`.
 
 #### WithCode
 
 ```go
-func (e *Errorz) WithCode(code string) *Errorz
+func (e *Error) WithCode(code string) *Error
 ```
 
 Sets the error code and returns the receiver for method chaining.
@@ -477,7 +479,7 @@ Sets the error code and returns the receiver for method chaining.
 #### WithMessage
 
 ```go
-func (e *Errorz) WithMessage(message string) *Errorz
+func (e *Error) WithMessage(message string) *Error
 ```
 
 Sets the error message and returns the receiver for method chaining.
@@ -485,7 +487,7 @@ Sets the error message and returns the receiver for method chaining.
 #### WithSourceSystem
 
 ```go
-func (e *Errorz) WithSourceSystem(sourceSystem string) *Errorz
+func (e *Error) WithSourceSystem(sourceSystem string) *Error
 ```
 
 Sets the source system identifier and returns the receiver for method chaining.
@@ -493,7 +495,7 @@ Sets the source system identifier and returns the receiver for method chaining.
 #### WithMeta
 
 ```go
-func (e *Errorz) WithMeta(key string, value any) *Errorz
+func (e *Error) WithMeta(key string, value any) *Error
 ```
 
 Adds a key-value pair to the metadata map and returns the receiver for method chaining. Initialises the `Meta` map if it is `nil`.
@@ -522,7 +524,7 @@ Adds a key-value pair to the metadata map and returns the receiver for method ch
 var DefaultSourceSystem = "application"
 ```
 
-The default value used for the `SourceSystem` field when creating new `Errorz` instances.
+The default value used for the `SourceSystem` field when creating new `Error` instances.
 
 ## Dependencies
 
