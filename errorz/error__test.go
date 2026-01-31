@@ -139,17 +139,17 @@ func TestError_Error(t *testing.T) {
 		{
 			name:   "returns message",
 			errorz: New("test message"),
-			want:   "test message",
+			want:   "SourceSystem: application, Message: test message",
 		},
 		{
 			name:   "returns empty message",
 			errorz: New(""),
-			want:   "",
+			want:   "SourceSystem: application",
 		},
 		{
 			name:   "returns updated message",
 			errorz: New("original").WithMessage("updated"),
-			want:   "updated",
+			want:   "SourceSystem: application, Message: updated",
 		},
 	}
 

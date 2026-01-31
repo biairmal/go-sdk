@@ -26,6 +26,7 @@ package errorz
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // Predefined error variables for common HTTP and application error scenarios.
@@ -118,25 +119,25 @@ type Error struct {
 // If the error code, source system, message, or metadata is not set, it is not included in the string.
 // If the original error is not set, it is not included in the string.
 func (e *Error) Error() string {
-	var message string
+	var messageList []string
 
 	if e.Code != "" {
-		message += fmt.Sprintf("Code: %s, ", e.Code)
+		messageList = append(messageList, fmt.Sprintf("Code: %s", e.Code))
 	}
 	if e.SourceSystem != "" {
-		message += fmt.Sprintf("SourceSystem: %s, ", e.SourceSystem)
+		messageList = append(messageList, fmt.Sprintf("SourceSystem: %s", e.SourceSystem))
 	}
 	if e.Message != "" {
-		message += fmt.Sprintf("Message: %s, ", e.Message)
+		messageList = append(messageList, fmt.Sprintf("Message: %s", e.Message))
 	}
 	if len(e.Meta) > 0 {
-		message += fmt.Sprintf("Meta: %v", e.Meta)
+		messageList = append(messageList, fmt.Sprintf("Meta: %v", e.Meta))
 	}
 	if e.Err != nil {
-		message += fmt.Sprintf(", Original Error: %v", e.Err.Error())
+		messageList = append(messageList, fmt.Sprintf("Original Error: %v", e.Err.Error()))
 	}
 
-	return message
+	return strings.Join(messageList, ", ")
 }
 
 // Unwrap returns the underlying error that was wrapped, if any.
