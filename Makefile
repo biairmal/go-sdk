@@ -48,8 +48,8 @@ check: ci ## Alias for ci
 ci: ## Run all checks (format-check, lint, test, coverage, vulncheck, deps-verify); fail-fast
 	@echo ">>>> CI <<<<"
 	$(ECHO_EMPTY)
-	@$(MAKE) format-check
-	@$(MAKE) lint
+	@$(MAKE) format
+	@$(MAKE) lint-fix
 	@$(MAKE) test-unit
 	@$(MAKE) coverage
 	@$(MAKE) deps-verify

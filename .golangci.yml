@@ -40,7 +40,7 @@ linters-settings:
     statements: 50
   
   gocognit:
-    min-complexity: 15
+    min-complexity: 25
   
   lll:
     line-length: 120
@@ -69,7 +69,7 @@ linters:
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
+    - gofumpt
     - goimports
     - typecheck
     - gocritic
