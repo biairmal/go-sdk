@@ -50,6 +50,8 @@ The package is designed to be driver-agnostic—you import your preferred databa
 
 8. **Follower Selection**: Round-robin selection does not consider follower load or latency. It only checks health status.
 
+9. **Nested Transactions**: Nested transactions are not supported. Calling `WithTransaction` or `WithTransactionOptions` from within an existing transaction returns an error.
+
 ## Usage
 
 ### Installation
@@ -77,34 +79,38 @@ package main
 
 import (
     "context"
+    "log"
     "time"
     "github.com/biairmal/go-sdk/sqlkit"
 )
 
 func main() {
     ctx := context.Background()
-    
+
     cfg := sqlkit.Config{
         Leader: sqlkit.DBConfig{
-            Driver:   "postgres",
-            Host:     "localhost",
-            Port:     5432,
-            Database: "myapp",
-            Username: "app_user",
-            Password: "secret",
-            SSLMode:  "require",
+            Driver:         "postgres",
+            Host:           "localhost",
+            Port:           5432,
+            Database:       "myapp",
+            Username:       "app_user",
+            Password:       "secret",
+            SSLMode:        "require",
             ConnectTimeout: 5 * time.Second,
         },
     }
-    
-    db, err := sqlkit.New(ctx, cfg)
+
+    db, err := sqlkit.New(ctx, &cfg)
     if err != nil {
         log.Fatal(err)
     }
     defer db.Close()
-    
+
     // Use leader for both reads and writes
     _, err = db.Leader().ExecContext(ctx, "INSERT INTO users (name) VALUES ($1)", "John")
+    if err != nil {
+        log.Fatal(err)
+    }
 }
 ```
 
@@ -113,35 +119,35 @@ func main() {
 ```go
 cfg := sqlkit.Config{
     Leader: sqlkit.DBConfig{
-        Driver:   "postgres",
-        Host:     "db-leader.example.com",
-        Port:     5432,
-        Database: "myapp",
-        Username: "app_user",
-        Password: "secret",
-        SSLMode:  "require",
+        Driver:         "postgres",
+        Host:           "db-leader.example.com",
+        Port:           5432,
+        Database:       "myapp",
+        Username:       "app_user",
+        Password:       "secret",
+        SSLMode:        "require",
         ConnectTimeout: 5 * time.Second,
         MaxRetries:     3,
     },
     Followers: []sqlkit.DBConfig{
         {
-            Driver:   "postgres",
-            Host:     "db-replica-1.example.com",
-            Port:     5432,
-            Database: "myapp",
-            Username: "readonly_user",
-            Password: "secret",
-            SSLMode:  "require",
+            Driver:         "postgres",
+            Host:           "db-replica-1.example.com",
+            Port:           5432,
+            Database:       "myapp",
+            Username:       "readonly_user",
+            Password:       "secret",
+            SSLMode:        "require",
             ConnectTimeout: 5 * time.Second,
         },
         {
-            Driver:   "postgres",
-            Host:     "db-replica-2.example.com",
-            Port:     5432,
-            Database: "myapp",
-            Username: "readonly_user",
-            Password: "secret",
-            SSLMode:  "require",
+            Driver:         "postgres",
+            Host:           "db-replica-2.example.com",
+            Port:           5432,
+            Database:       "myapp",
+            Username:       "readonly_user",
+            Password:       "secret",
+            SSLMode:        "require",
             ConnectTimeout: 5 * time.Second,
         },
     },
@@ -158,7 +164,7 @@ cfg := sqlkit.Config{
     },
 }
 
-db, err := sqlkit.New(ctx, cfg)
+db, err := sqlkit.New(ctx, &cfg)
 if err != nil {
     log.Fatal(err)
 }
@@ -171,8 +177,8 @@ defer db.Close()
 
 ```go
 // INSERT, UPDATE, DELETE operations
-_, err := db.Leader().ExecContext(ctx, 
-    "INSERT INTO users (name, email) VALUES ($1, $2)", 
+_, err := db.Leader().ExecContext(ctx,
+    "INSERT INTO users (name, email) VALUES ($1, $2)",
     "John Doe", "john@example.com")
 
 // Prepared statements
@@ -227,15 +233,15 @@ users, err := readQueries.ListUsers(ctx)
 // Transaction
 err = db.WithTransaction(ctx, func(txCtx context.Context) error {
     qtx := writeQueries.WithTx(sqlkit.ExtractTx(txCtx))
-    
+
     if err := qtx.CreateUser(txCtx, sqlc.CreateUserParams{...}); err != nil {
         return err
     }
-    
+
     if err := qtx.CreateWallet(txCtx, sqlc.CreateWalletParams{...}); err != nil {
         return err
     }
-    
+
     return nil
 })
 ```
@@ -254,7 +260,7 @@ leaderDB := sqlx.NewDb(db.Leader(), db.Driver())
 followerDB := sqlx.NewDb(db.Follower(), db.Driver())
 
 // Write operation
-_, err = leaderDB.ExecContext(ctx, "INSERT INTO users (name, email) VALUES ($1, $2)", 
+_, err = leaderDB.ExecContext(ctx, "INSERT INTO users (name, email) VALUES ($1, $2)",
     "John Doe", "john@example.com")
 
 // Read operation with struct scanning
@@ -265,7 +271,7 @@ err = followerDB.SelectContext(ctx, &users, "SELECT * FROM users WHERE active = 
 err = db.WithTransaction(ctx, func(txCtx context.Context) error {
     tx, _ := sqlkit.ExtractTx(txCtx)
     txx := sqlx.NewDb(tx, db.Driver())
-    
+
     _, err := txx.ExecContext(txCtx, "INSERT INTO users...")
     return err
 })
@@ -279,15 +285,15 @@ err = db.WithTransaction(ctx, func(txCtx context.Context) error {
 err := db.WithTransaction(ctx, func(txCtx context.Context) error {
     // All repository calls use txCtx
     // They will automatically use the transaction
-    
+
     if err := userRepo.Create(txCtx, user); err != nil {
         return err
     }
-    
+
     if err := walletRepo.Create(txCtx, wallet); err != nil {
         return err
     }
-    
+
     return nil // Commit transaction
     // Return error to rollback
 })
@@ -314,7 +320,7 @@ err := db.WithReadOnlyTransaction(ctx, func(txCtx context.Context) error {
     // Long-running read operations
     // Uses follower database
     // Provides consistent snapshot
-    
+
     var report Report
     err := readQueries.GenerateReport(txCtx, &report)
     return err
@@ -323,22 +329,32 @@ err := db.WithReadOnlyTransaction(ctx, func(txCtx context.Context) error {
 
 ### Repository Pattern with Transactions
 
+Repositories that accept `context.Context` can participate in transactions by using `sqlkit.ExtractTx(ctx)`: when the service runs code inside `WithTransaction`, the same context is passed to the repository, which then uses the transaction for its queries.
+
 ```go
+import (
+    "context"
+    "database/sql"
+    "github.com/biairmal/go-sdk/sqlkit"
+)
+
 type UserRepository struct {
-    db *sql.DB
+    db *sqlkit.DB
 }
 
 func (r *UserRepository) Create(ctx context.Context, user *User) error {
-    // Check if we're in a transaction
-    if tx, ok := sqlkit.ExtractTx(ctx); ok {
-        // Use transaction
-        _, err := tx.ExecContext(ctx, "INSERT INTO users...", ...)
-        return err
-    }
-    
-    // Use regular connection
-    _, err := r.db.ExecContext(ctx, "INSERT INTO users...", ...)
+    conn := r.getConnection(ctx) // write connection
+    _, err := conn.ExecContext(ctx, "INSERT INTO users (name) VALUES ($1)", user.Name)
     return err
+}
+
+func (r *UserRepository) getConnection(ctx context.Context) interface {
+    ExecContext(context.Context, string, ...any) (sql.Result, error)
+} {
+    if tx, ok := sqlkit.ExtractTx(ctx); ok {
+        return tx
+    }
+    return r.db.Leader()
 }
 
 // Service layer manages transactions
@@ -370,6 +386,9 @@ health := db.GetHealth()
 fmt.Printf("Leader healthy: %v\n", health.Leader.Healthy)
 fmt.Printf("Leader response time: %v\n", health.Leader.ResponseTime)
 fmt.Printf("Last check: %v\n", health.Leader.LastCheck)
+if health.Leader.Error != "" {
+    fmt.Printf("Leader error: %s\n", health.Leader.Error)
+}
 
 for i, follower := range health.Followers {
     fmt.Printf("Follower %d healthy: %v\n", i, follower.Healthy)
@@ -391,12 +410,12 @@ if db.IsHealthy() {
 ```go
 func healthHandler(w http.ResponseWriter, r *http.Request) {
     health := db.GetHealth()
-    
+
     if !health.Leader.Healthy {
         http.Error(w, "Database unhealthy", http.StatusServiceUnavailable)
         return
     }
-    
+
     w.WriteHeader(http.StatusOK)
     json.NewEncoder(w).Encode(health)
 }
@@ -412,10 +431,10 @@ import (
 
 func findUser(ctx context.Context, db *sqlkit.DB, id int) (*User, error) {
     var user User
-    err := db.Follower().QueryRowContext(ctx, 
+    err := db.Follower().QueryRowContext(ctx,
         "SELECT id, name FROM users WHERE id = $1", id).
         Scan(&user.ID, &user.Name)
-    
+
     if err != nil {
         if sqlkit.IsNoRows(err) {
             // Handle "not found" case
@@ -424,12 +443,22 @@ func findUser(ctx context.Context, db *sqlkit.DB, id int) (*User, error) {
         // Handle other errors
         return nil, err
     }
-    
+
     return &user, nil
 }
 ```
 
 ## Configuration Reference
+
+### Config Validation
+
+`Config.Validate()` requires:
+
+- `Leader.Driver` non-empty
+- `Leader.Host` non-empty
+- `Leader.Database` non-empty
+
+Pool and Health defaults are applied in `New()` when zero values are present.
 
 ### DBConfig
 
@@ -450,6 +479,7 @@ type DBConfig struct {
 ```
 
 **DSN Generation**: The `DSN()` method generates database-specific connection strings:
+
 - **PostgreSQL**: `host=%s port=%d user=%s password=%s dbname=%s sslmode=%s connect_timeout=%d`
 - **MySQL**: `%s:%s@tcp(%s:%d)/%s?parseTime=true&timeout=%s`
 - **SQLite3**: `file:%s?mode=rwc&cache=shared&_busy_timeout=%d`
@@ -492,10 +522,10 @@ Use `sqlkit.DefaultHealthConfig()` to get default values.
 #### New
 
 ```go
-func New(ctx context.Context, cfg Config) (*DB, error)
+func New(ctx context.Context, cfg *Config) (*DB, error)
 ```
 
-Creates and initialises a new DB instance. Validates configuration, initialises leader and follower connections, configures connection pools, and starts health check goroutine if enabled. Returns error only if leader connection fails.
+Creates and initialises a new DB instance. Accepts a pointer to `Config`. Validates configuration, initialises leader and follower connections, configures connection pools, and starts health check goroutine if enabled. Returns error only if leader connection fails.
 
 ### Methods on DB
 
@@ -537,7 +567,7 @@ Closes all database connections and stops health checks. Cancels context, closes
 func (db *DB) WithTransaction(ctx context.Context, fn TxFunc) error
 ```
 
-Executes a function within a transaction with default options. Begins transaction on leader, injects transaction into context, executes function, and commits or rolls back based on result. Panic-safe.
+Executes a function within a transaction with default options. Begins transaction on leader, injects transaction into context, executes function, and commits or rolls back based on result. Returns an error if called when a transaction is already present in the context (nested transaction). Panic-safe.
 
 #### WithTransactionOptions
 
@@ -545,7 +575,7 @@ Executes a function within a transaction with default options. Begins transactio
 func (db *DB) WithTransactionOptions(ctx context.Context, opts *sql.TxOptions, fn TxFunc) error
 ```
 
-Same as `WithTransaction` but uses provided transaction options (isolation level, read-only flag).
+Same as `WithTransaction` but uses provided transaction options (isolation level, read-only flag). Nested transaction in context returns error.
 
 #### WithReadOnlyTransaction
 
@@ -553,7 +583,7 @@ Same as `WithTransaction` but uses provided transaction options (isolation level
 func (db *DB) WithReadOnlyTransaction(ctx context.Context, fn TxFunc) error
 ```
 
-Executes a read-only transaction on a follower. Uses follower database, falls back to leader if no healthy followers. Still requires commit.
+Executes a read-only transaction on a follower. Uses follower database, falls back to leader if no healthy followers. Still requires commit. Nested transaction in context returns error.
 
 #### GetHealth
 
@@ -620,7 +650,7 @@ Checks if error is `sql.ErrNoRows`. Use in repository layer to distinguish "not 
 db, err := sql.Open("postgres", dsn)
 
 // After
-sqlkitDB, err := sqlkit.New(ctx, cfg)
+sqlkitDB, err := sqlkit.New(ctx, &cfg)
 db := sqlkitDB.Leader() // Drop-in replacement
 ```
 
@@ -631,7 +661,7 @@ db := sqlkitDB.Leader() // Drop-in replacement
 db := sqlx.Connect("postgres", dsn)
 
 // After
-sqlkitDB, err := sqlkit.New(ctx, cfg)
+sqlkitDB, err := sqlkit.New(ctx, &cfg)
 db := sqlx.NewDb(sqlkitDB.Leader(), "postgres")
 ```
 
@@ -639,7 +669,7 @@ db := sqlx.NewDb(sqlkitDB.Leader(), "postgres")
 
 1. **Connection Pooling**: Use reasonable defaults (MaxOpenConns: 25, MaxIdleConns: 5). Monitor pool exhaustion in production.
 
-2. **Health Checks**: Health checks run in a separate goroutine and don't block main operations. Default interval is 30 seconds. Disable if not needed.
+2. **Health Checks**: Health checks run in a separate goroutine and do not block main operations. Default interval is 30 seconds. Disable if not needed.
 
 3. **Follower Selection**: Round-robin selection is fast with minimal lock contention. Health checks are read-locked for quick lookups.
 
@@ -672,28 +702,28 @@ import (
 
 func main() {
     ctx := context.Background()
-    
+
     cfg := sqlkit.Config{
         Leader: sqlkit.DBConfig{
-            Driver:   "postgres",
-            Host:     "localhost",
-            Port:     5432,
-            Database: "myapp",
-            Username: "app_user",
-            Password: "secret",
-            SSLMode:  "require",
+            Driver:         "postgres",
+            Host:           "localhost",
+            Port:           5432,
+            Database:       "myapp",
+            Username:       "app_user",
+            Password:       "secret",
+            SSLMode:        "require",
             ConnectTimeout: 5 * time.Second,
         },
-        Pool: sqlkit.DefaultPoolConfig(),
+        Pool:   sqlkit.DefaultPoolConfig(),
         Health: sqlkit.DefaultHealthConfig(),
     }
-    
-    db, err := sqlkit.New(ctx, cfg)
+
+    db, err := sqlkit.New(ctx, &cfg)
     if err != nil {
         log.Fatal(err)
     }
     defer db.Close()
-    
+
     // Use database
     _, err = db.Leader().ExecContext(ctx, "INSERT INTO users (name) VALUES ($1)", "John")
     if err != nil {
@@ -715,11 +745,11 @@ func (s *UserService) CreateUserWithProfile(ctx context.Context, user *User, pro
         if err := s.repo.Create(txCtx, user); err != nil {
             return err
         }
-        
+
         if err := s.profileRepo.Create(txCtx, profile); err != nil {
             return err
         }
-        
+
         return nil
     })
 }
@@ -728,6 +758,7 @@ func (s *UserService) CreateUserWithProfile(ctx context.Context, user *User, pro
 ## Dependencies
 
 **Required:**
+
 - `database/sql` (standard library)
 - `context` (standard library)
 - `sync` (standard library)
@@ -735,11 +766,13 @@ func (s *UserService) CreateUserWithProfile(ctx context.Context, user *User, pro
 - `errors` (standard library)
 
 **Database Drivers (user must import):**
+
 - `github.com/lib/pq` (PostgreSQL)
 - `github.com/go-sql-driver/mysql` (MySQL)
 - Or any other `database/sql` compatible driver
 
 **Optional:**
+
 - `github.com/jmoiron/sqlx` (if user wants sqlx features)
 - `github.com/kyleconroy/sqlc` (if user wants sqlc code generation)
 

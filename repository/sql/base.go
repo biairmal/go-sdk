@@ -29,6 +29,16 @@ func (r *BaseRepository) WithIDColumn(column string) *BaseRepository {
 	return r
 }
 
+// TableName returns the table name.
+func (r *BaseRepository) TableName() string {
+	return r.tableName
+}
+
+// IDColumn returns the ID column name.
+func (r *BaseRepository) IDColumn() string {
+	return r.idColumn
+}
+
 // Connection is an interface for database operations.
 type Connection interface {
 	ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
@@ -68,14 +78,4 @@ func (r *BaseRepository) GetReadConnection(ctx context.Context) ReadConnection {
 		return tx
 	}
 	return r.db.Follower()
-}
-
-// TableName returns the table name.
-func (r *BaseRepository) TableName() string {
-	return r.tableName
-}
-
-// IDColumn returns the ID column name.
-func (r *BaseRepository) IDColumn() string {
-	return r.idColumn
 }
