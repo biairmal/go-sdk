@@ -12,9 +12,13 @@ import (
 )
 
 // SQLRepositoryOption configures SQLRepository.
+//
+//revive:disable-next-line:exported
 type SQLRepositoryOption[TEntity any, TID comparable] func(*SQLRepository[TEntity, TID])
 
 // SQLRepository is a generic CRUD repository implementation using reflection (struct tag db).
+//
+//revive:disable-next-line:exported
 type SQLRepository[TEntity any, TID comparable] struct {
 	*BaseRepository
 	log           logger.Logger
@@ -109,7 +113,9 @@ func (r *SQLRepository[TEntity, TID]) Create(ctx context.Context, entity *TEntit
 			return ConvertSQLError(err)
 		}
 		if id, err := result.LastInsertId(); err == nil && id != 0 {
-			_ = SetEntityID(entity, id, idColumn)
+			if setErr := SetEntityID(entity, id, idColumn); setErr != nil {
+				return setErr
+			}
 		}
 		return nil
 	}
@@ -198,7 +204,9 @@ func (r *SQLRepository[TEntity, TID]) Delete(ctx context.Context, id TID) error 
 }
 
 // List retrieves entities with filtering and pagination and returns total count.
-func (r *SQLRepository[TEntity, TID]) List(ctx context.Context, opts *repository.ListOptions) ([]*TEntity, int64, error) {
+func (r *SQLRepository[TEntity, TID]) List(
+	ctx context.Context, opts *repository.ListOptions,
+) (entities []*TEntity, total int64, err error) {
 	conn := r.GetReadConnection(ctx)
 	query, args := r.buildListQuery(opts)
 	r.logQuery(ctx, query, args)
@@ -207,18 +215,16 @@ func (r *SQLRepository[TEntity, TID]) List(ctx context.Context, opts *repository
 		return nil, 0, ConvertSQLError(err)
 	}
 	defer rows.Close()
-	var entities []*TEntity
 	for rows.Next() {
-		entity, err := ScanRow[TEntity](rows)
-		if err != nil {
-			return nil, 0, ConvertSQLError(err)
+		entity, scanErr := ScanRow[TEntity](rows)
+		if scanErr != nil {
+			return nil, 0, ConvertSQLError(scanErr)
 		}
 		entities = append(entities, entity)
 	}
-	if err := rows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		return nil, 0, ConvertSQLError(err)
 	}
-	var total int64 = 0
 	if !opts.SkipCount {
 		total, err = r.Count(ctx, opts.Filter)
 		if err != nil {

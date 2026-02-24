@@ -27,11 +27,11 @@ func (Postgres) PaginationClause(limitArgIndex, offsetArgIndex int) string {
 // MySQL dialect (placeholder ?).
 type MySQL struct{}
 
-func (MySQL) Placeholder(index int) string {
+func (MySQL) Placeholder(_ int) string {
 	return "?"
 }
 
-func (MySQL) PaginationClause(limitArgIndex, offsetArgIndex int) string {
+func (MySQL) PaginationClause(_, _ int) string {
 	return "LIMIT ? OFFSET ?"
 }
 
@@ -43,9 +43,11 @@ func (Oracle) Placeholder(index int) string {
 }
 
 func (Oracle) PaginationClause(limitArgIndex, offsetArgIndex int) string {
-	// Oracle 12c+: OFFSET n ROWS FETCH NEXT m ROWS ONLY (args: offset, limit in that order in standard)
-	// We pass args as [limit, offset] so use placeholders accordingly
-	return fmt.Sprintf("OFFSET %s ROWS FETCH NEXT %s ROWS ONLY", fmt.Sprintf(":%d", offsetArgIndex), fmt.Sprintf(":%d", limitArgIndex))
+	// Oracle 12c+: OFFSET n ROWS FETCH NEXT m ROWS ONLY (args: offset, limit in that order in standard).
+	// We pass args as [limit, offset] so use placeholders accordingly.
+	offPh := fmt.Sprintf(":%d", offsetArgIndex)
+	limPh := fmt.Sprintf(":%d", limitArgIndex)
+	return fmt.Sprintf("OFFSET %s ROWS FETCH NEXT %s ROWS ONLY", offPh, limPh)
 }
 
 // DefaultDialect is used when no dialect is set (Postgres for backward compatibility).

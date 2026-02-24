@@ -29,7 +29,9 @@ func getOrderedColumns(typ reflect.Type) []orderedColumn {
 	}
 	key := typ
 	if v, ok := orderedColumnsCache.Load(key); ok {
-		return v.([]orderedColumn)
+		if cols, ok := v.([]orderedColumn); ok {
+			return cols
+		}
 	}
 	var cols []orderedColumn
 	for i := 0; i < typ.NumField(); i++ {
@@ -70,10 +72,14 @@ func isFieldZero(v reflect.Value) bool {
 		return v.IsNil()
 	case reflect.Struct:
 		if v.Type() == uuidTypeRef {
-			return v.Interface().(uuid.UUID) == uuid.Nil
+			if u, ok := v.Interface().(uuid.UUID); ok {
+				return u == uuid.Nil
+			}
 		}
 		if v.Type() == timeTypeRef {
-			return v.Interface().(time.Time).IsZero()
+			if t, ok := v.Interface().(time.Time); ok {
+				return t.IsZero()
+			}
 		}
 	}
 	return v.IsZero()
@@ -98,7 +104,7 @@ func IsEntityIDZero[T any](entity *T, idColumn string) bool {
 		if idx := strings.Index(name, ","); idx >= 0 {
 			name = strings.TrimSpace(name[:idx])
 		}
-		if strings.ToLower(name) != idColLower {
+		if !strings.EqualFold(name, idColLower) {
 			continue
 		}
 		return isFieldZero(val.Field(i))
@@ -121,7 +127,7 @@ func BuildInsertQuery(table, idColumn string, dialect Dialect, typ reflect.Type,
 	var placeholders []string
 	argIdx := 1
 	for _, c := range cols {
-		if excludeIDColumn && strings.ToLower(c.Name) == idColLower {
+		if excludeIDColumn && strings.EqualFold(c.Name, idColLower) {
 			continue
 		}
 		names = append(names, c.Name)
@@ -131,7 +137,8 @@ func BuildInsertQuery(table, idColumn string, dialect Dialect, typ reflect.Type,
 	if len(names) == 0 {
 		return ""
 	}
-	return "INSERT INTO " + table + " (" + strings.Join(names, ", ") + ") VALUES (" + strings.Join(placeholders, ", ") + ")"
+	vals := " (" + strings.Join(names, ", ") + ") VALUES (" + strings.Join(placeholders, ", ") + ")"
+	return "INSERT INTO " + table + vals
 }
 
 // fieldValueToAny converts a struct field value to a value suitable for SQL (INSERT/UPDATE).
@@ -146,8 +153,9 @@ func fieldValueToAny(v reflect.Value) any {
 		return fieldValueToAny(v.Elem())
 	}
 	if v.Type() == uuidTypeRef {
-		u := v.Interface().(uuid.UUID)
-		return u.String()
+		if u, ok := v.Interface().(uuid.UUID); ok {
+			return u.String()
+		}
 	}
 	// time.Time, int, string, bool, etc. pass through
 	return v.Interface()
@@ -168,7 +176,7 @@ func ExtractInsertValues[T any](entity *T, idColumn string, excludeIDColumn bool
 	val := reflect.ValueOf(entity).Elem()
 	out := make([]any, 0, len(cols))
 	for _, c := range cols {
-		if excludeIDColumn && strings.ToLower(c.Name) == idColLower {
+		if excludeIDColumn && strings.EqualFold(c.Name, idColLower) {
 			continue
 		}
 		out = append(out, fieldValueToAny(val.Field(c.Index)))
@@ -181,7 +189,8 @@ type RowScanner interface {
 	Scan(dest ...any) error
 }
 
-// scanUUID scans a single UUID column from row. database/sql converts driver []byte to string when scanning into *string.
+// scanUUID scans a single UUID column from row.
+// database/sql converts driver []byte to string when scanning into *string.
 func scanUUID(row RowScanner) (uuid.UUID, error) {
 	var s string
 	if err := row.Scan(&s); err != nil {
@@ -207,7 +216,7 @@ func getEntityIDFieldInfo[T any](entity *T, idColumn string) (fieldIndex int, fi
 		if idx := strings.Index(name, ","); idx >= 0 {
 			name = strings.TrimSpace(name[:idx])
 		}
-		if strings.ToLower(name) != idColLower {
+		if !strings.EqualFold(name, idColLower) {
 			continue
 		}
 		return i, f.Type, true
@@ -230,6 +239,54 @@ func IsEntityIDFieldInt64[T any](entity *T, idColumn string) bool {
 	return false
 }
 
+// idFieldHandler scans one value from row and sets the field. Returns true if the type was handled.
+type idFieldHandler func(row RowScanner, field reflect.Value) error
+
+func scanReturnedIDUUID(row RowScanner, field reflect.Value) error {
+	u, err := scanUUID(row)
+	if err != nil {
+		return err
+	}
+	field.Set(reflect.ValueOf(u))
+	return nil
+}
+
+func scanReturnedIDPtrUUID(row RowScanner, field reflect.Value) error {
+	u, err := scanUUID(row)
+	if err != nil {
+		return err
+	}
+	field.Set(reflect.ValueOf(&u))
+	return nil
+}
+
+func scanReturnedIDString(row RowScanner, field reflect.Value) error {
+	var s string
+	if err := row.Scan(&s); err != nil {
+		return err
+	}
+	field.SetString(s)
+	return nil
+}
+
+func scanReturnedIDInt64(row RowScanner, field reflect.Value) error {
+	var i int64
+	if err := row.Scan(&i); err != nil {
+		return err
+	}
+	field.SetInt(i)
+	return nil
+}
+
+func scanReturnedIDPtrInt64(row RowScanner, field reflect.Value) error {
+	var i int64
+	if err := row.Scan(&i); err != nil {
+		return err
+	}
+	field.Set(reflect.ValueOf(&i))
+	return nil
+}
+
 // ScanReturnedIDAndSetEntity runs row.Scan and sets the entity's ID field from the returned value.
 // Supports uuid.UUID, *uuid.UUID, string, int64, *int64. Used after INSERT ... RETURNING id for DB-generated IDs.
 func ScanReturnedIDAndSetEntity[T any](entity *T, idColumn string, row RowScanner) error {
@@ -245,49 +302,22 @@ func ScanReturnedIDAndSetEntity[T any](entity *T, idColumn string, row RowScanne
 	if !field.CanSet() {
 		return nil
 	}
-
-	switch ft {
-	case uuidTypeRef:
-		u, err := scanUUID(row)
-		if err != nil {
-			return err
-		}
-		field.Set(reflect.ValueOf(u))
+	var handler idFieldHandler
+	switch {
+	case ft == uuidTypeRef:
+		handler = scanReturnedIDUUID
+	case ft.Kind() == reflect.Ptr && ft.Elem() == uuidTypeRef:
+		handler = scanReturnedIDPtrUUID
+	case ft.Kind() == reflect.String:
+		handler = scanReturnedIDString
+	case ft.Kind() == reflect.Int64:
+		handler = scanReturnedIDInt64
+	case ft.Kind() == reflect.Ptr && ft.Elem().Kind() == reflect.Int64:
+		handler = scanReturnedIDPtrInt64
+	default:
 		return nil
 	}
-	if ft.Kind() == reflect.Ptr && ft.Elem() == uuidTypeRef {
-		u, err := scanUUID(row)
-		if err != nil {
-			return err
-		}
-		field.Set(reflect.ValueOf(&u))
-		return nil
-	}
-	if ft.Kind() == reflect.String {
-		var s string
-		if err := row.Scan(&s); err != nil {
-			return err
-		}
-		field.SetString(s)
-		return nil
-	}
-	if ft.Kind() == reflect.Int64 {
-		var i int64
-		if err := row.Scan(&i); err != nil {
-			return err
-		}
-		field.SetInt(i)
-		return nil
-	}
-	if ft.Kind() == reflect.Ptr && ft.Elem().Kind() == reflect.Int64 {
-		var i int64
-		if err := row.Scan(&i); err != nil {
-			return err
-		}
-		field.Set(reflect.ValueOf(&i))
-		return nil
-	}
-	return nil
+	return handler(row, field)
 }
 
 // SetEntityID sets the entity's ID field to id if it is an int64 column named idColumn (case-insensitive).
@@ -308,7 +338,7 @@ func SetEntityID[T any](entity *T, id int64, idColumn string) error {
 		if idx := strings.Index(name, ","); idx >= 0 {
 			name = strings.TrimSpace(name[:idx])
 		}
-		if strings.ToLower(name) != idColLower {
+		if !strings.EqualFold(name, idColLower) {
 			continue
 		}
 		field := val.Field(i)
@@ -338,7 +368,7 @@ func BuildUpdateQuery(table, idColumn string, dialect Dialect, typ reflect.Type)
 	idColLower := strings.ToLower(idColumn)
 	var setCols []orderedColumn
 	for _, c := range cols {
-		if strings.ToLower(c.Name) == idColLower {
+		if strings.EqualFold(c.Name, idColLower) {
 			continue
 		}
 		setCols = append(setCols, c)
@@ -351,7 +381,8 @@ func BuildUpdateQuery(table, idColumn string, dialect Dialect, typ reflect.Type)
 		parts[i] = c.Name + " = " + dialect.Placeholder(i+1)
 	}
 	whereArgIdx := len(setCols) + 1
-	return "UPDATE " + table + " SET " + strings.Join(parts, ", ") + " WHERE " + idColumn + " = " + dialect.Placeholder(whereArgIdx)
+	setClause := " SET " + strings.Join(parts, ", ") + " WHERE " + idColumn + " = " + dialect.Placeholder(whereArgIdx)
+	return "UPDATE " + table + setClause
 }
 
 // ExtractUpdateValues returns values for UPDATE SET clause in column order (excluding id), then appends idVal.
@@ -365,7 +396,7 @@ func ExtractUpdateValues[T any](entity *T, idVal any, idColumn string) []any {
 	val := reflect.ValueOf(entity).Elem()
 	var out []any
 	for _, c := range cols {
-		if strings.ToLower(c.Name) == idColLower {
+		if strings.EqualFold(c.Name, idColLower) {
 			continue
 		}
 		out = append(out, fieldValueToAny(val.Field(c.Index)))

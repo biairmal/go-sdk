@@ -59,6 +59,16 @@ func ScanRow[T any](rows *sql.Rows) (*T, error) {
 	if err := rows.Scan(dest...); err != nil {
 		return nil, err
 	}
+	applyUUIDFields(ptr, columns, mapping, uuidScans)
+	t, ok := ptr.Interface().(*T)
+	if !ok {
+		return nil, nil // type mismatch from reflection; caller should not see this for valid T
+	}
+	return t, nil
+}
+
+// applyUUIDFields sets UUID and *uuid.UUID fields on ptr from uuidScans (after rows.Scan).
+func applyUUIDFields(ptr reflect.Value, columns []string, mapping map[string]int, uuidScans []*string) {
 	for i, col := range columns {
 		idx, ok := mapping[strings.ToLower(col)]
 		if !ok {
@@ -67,22 +77,28 @@ func ScanRow[T any](rows *sql.Rows) (*T, error) {
 		field := ptr.Elem().Field(idx)
 		ft := field.Type()
 		if ft == uuidType {
-			if uuidScans[i] != nil && *uuidScans[i] != "" {
-				if u, err := uuid.Parse(*uuidScans[i]); err == nil {
-					field.Set(reflect.ValueOf(u))
-				}
-			}
+			setUUIDFieldFromScan(field, uuidScans[i], false)
 			continue
 		}
 		if ft.Kind() == reflect.Ptr && ft.Elem() == uuidType {
-			if uuidScans[i] != nil && *uuidScans[i] != "" {
-				if u, err := uuid.Parse(*uuidScans[i]); err == nil {
-					field.Set(reflect.ValueOf(&u))
-				}
-			}
+			setUUIDFieldFromScan(field, uuidScans[i], true)
 		}
 	}
-	return ptr.Interface().(*T), nil
+}
+
+func setUUIDFieldFromScan(field reflect.Value, scan *string, ptr bool) {
+	if scan == nil || *scan == "" {
+		return
+	}
+	u, err := uuid.Parse(*scan)
+	if err != nil {
+		return
+	}
+	if ptr {
+		field.Set(reflect.ValueOf(&u))
+	} else {
+		field.Set(reflect.ValueOf(u))
+	}
 }
 
 // ReflectScan returns a function that maps rows to *T using struct tag `db:"column_name"`.
@@ -95,7 +111,9 @@ func ReflectScan[T any]() func(*sql.Rows) (*T, error) {
 func getColumnMapping(typ reflect.Type) map[string]int {
 	key := typ
 	if v, ok := columnMappingCache.Load(key); ok {
-		return v.(map[string]int)
+		if m, ok := v.(map[string]int); ok {
+			return m
+		}
 	}
 	m := make(map[string]int)
 	for i := 0; i < typ.NumField(); i++ {

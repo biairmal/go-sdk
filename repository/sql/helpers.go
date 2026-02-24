@@ -13,6 +13,59 @@ var supportedOps = map[string]bool{
 	"like": true, "in": true, "is_null": true, "is_not_null": true,
 }
 
+// whereCondFunc builds one condition and returns condition SQL, args to append, and next arg index.
+type whereCondFunc func(
+	field string, c repository.FilterCondition, d Dialect, argIdx int,
+) (cond string, addArgs []any, nextIdx int)
+
+var whereCondBuilders = map[string]whereCondFunc{
+	"eq": func(f string, c repository.FilterCondition, d Dialect, i int) (string, []any, int) {
+		return f + " = " + d.Placeholder(i), []any{c.Value}, i + 1
+	},
+	"ne": func(f string, c repository.FilterCondition, d Dialect, i int) (string, []any, int) {
+		return f + " <> " + d.Placeholder(i), []any{c.Value}, i + 1
+	},
+	"gt": func(f string, c repository.FilterCondition, d Dialect, i int) (string, []any, int) {
+		return f + " > " + d.Placeholder(i), []any{c.Value}, i + 1
+	},
+	"gte": func(f string, c repository.FilterCondition, d Dialect, i int) (string, []any, int) {
+		return f + " >= " + d.Placeholder(i), []any{c.Value}, i + 1
+	},
+	"lt": func(f string, c repository.FilterCondition, d Dialect, i int) (string, []any, int) {
+		return f + " < " + d.Placeholder(i), []any{c.Value}, i + 1
+	},
+	"lte": func(f string, c repository.FilterCondition, d Dialect, i int) (string, []any, int) {
+		return f + " <= " + d.Placeholder(i), []any{c.Value}, i + 1
+	},
+	"like": func(f string, c repository.FilterCondition, d Dialect, i int) (string, []any, int) {
+		return f + " LIKE " + d.Placeholder(i), []any{c.Value}, i + 1
+	},
+	"in": buildWhereInCond,
+	"is_null": func(f string, _ repository.FilterCondition, _ Dialect, i int) (string, []any, int) {
+		return f + " IS NULL", nil, i
+	},
+	"is_not_null": func(f string, _ repository.FilterCondition, _ Dialect, i int) (string, []any, int) {
+		return f + " IS NOT NULL", nil, i
+	},
+}
+
+func buildWhereInCond(
+	field string, c repository.FilterCondition, d Dialect, argIdx int,
+) (cond string, addArgs []any, nextIdx int) {
+	if len(c.Values) == 0 {
+		return "", nil, argIdx
+	}
+	placeholders := make([]string, len(c.Values))
+	for i := range c.Values {
+		placeholders[i] = d.Placeholder(argIdx)
+		argIdx++
+	}
+	cond = field + " IN (" + strings.Join(placeholders, ", ") + ")"
+	addArgs = c.Values
+	nextIdx = argIdx
+	return cond, addArgs, nextIdx
+}
+
 // BuildWhereClause builds WHERE clause from filter using the given dialect for placeholders.
 func BuildWhereClause(dialect Dialect, filter repository.Filter) (whereClause string, whereArgs []any) {
 	if dialect == nil {
@@ -31,50 +84,15 @@ func BuildWhereClause(dialect Dialect, filter repository.Filter) (whereClause st
 		if !supportedOps[op] {
 			continue
 		}
-		switch op {
-		case "eq":
-			conditions = append(conditions, field+" = "+dialect.Placeholder(argIdx))
-			args = append(args, c.Value)
-			argIdx++
-		case "ne":
-			conditions = append(conditions, field+" <> "+dialect.Placeholder(argIdx))
-			args = append(args, c.Value)
-			argIdx++
-		case "gt":
-			conditions = append(conditions, field+" > "+dialect.Placeholder(argIdx))
-			args = append(args, c.Value)
-			argIdx++
-		case "gte":
-			conditions = append(conditions, field+" >= "+dialect.Placeholder(argIdx))
-			args = append(args, c.Value)
-			argIdx++
-		case "lt":
-			conditions = append(conditions, field+" < "+dialect.Placeholder(argIdx))
-			args = append(args, c.Value)
-			argIdx++
-		case "lte":
-			conditions = append(conditions, field+" <= "+dialect.Placeholder(argIdx))
-			args = append(args, c.Value)
-			argIdx++
-		case "like":
-			conditions = append(conditions, field+" LIKE "+dialect.Placeholder(argIdx))
-			args = append(args, c.Value)
-			argIdx++
-		case "in":
-			if len(c.Values) == 0 {
-				continue
-			}
-			placeholders := make([]string, len(c.Values))
-			for i := range c.Values {
-				placeholders[i] = dialect.Placeholder(argIdx)
-				argIdx++
-			}
-			args = append(args, c.Values...)
-			conditions = append(conditions, field+" IN ("+strings.Join(placeholders, ", ")+")")
-		case "is_null":
-			conditions = append(conditions, field+" IS NULL")
-		case "is_not_null":
-			conditions = append(conditions, field+" IS NOT NULL")
+		build := whereCondBuilders[op]
+		if build == nil {
+			continue
+		}
+		cond, addArgs, nextIdx := build(field, c, dialect, argIdx)
+		if cond != "" {
+			conditions = append(conditions, cond)
+			args = append(args, addArgs...)
+			argIdx = nextIdx
 		}
 	}
 
