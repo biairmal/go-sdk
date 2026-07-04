@@ -12,7 +12,7 @@ Phases are listed in **build order** — each builds on the ones above it.
 |---|---|---|---|
 | 1 | `ctxkit` | Canonical request-scoped context keys + logger extractor | ✅ **Done** |
 | 2 | `validator` | Struct validation via tags (wraps go-playground/validator) | ✅ **Done** |
-| 3 | `tracer` | Distributed tracing (OpenTelemetry) | ⬜ Planned |
+| 3 | `tracer` | Distributed tracing (OpenTelemetry) | ✅ **Done** |
 | 4 | `auth` | Token issuing + validation, monolith-first | ⬜ Planned |
 | 5 | `metrics` | Request instrumentation (Prometheus) | ⬜ Planned |
 | 6 | `ratelimit` | Rate limiting (in-memory + Redis) | ⬜ Planned |
@@ -92,8 +92,9 @@ Dependency direction: `ctxkit → logger` (one-way); `logger` stays a leaf, unch
 `ctxkit/ctxkit__test.go`, `ctxkit/README.md`, `httpkit/middleware/correlation.go` (`Correlation()` +
 `CorrelationIDHeader`). `httpkit/middleware/requestid.go` also writes `ctxkit.WithRequestID` now.
 
-**Remaining integration edits (apply as later phases land):** tracer mw uses `ctxkit.WithTraceID`; auth mw uses
-`ctxkit.WithUserID`; `httpkit/client` forwards correlation + traceparent on outbound requests. **Deps:** none.
+**Remaining integration edits (apply as later phases land):** ~~tracer mw uses `ctxkit.WithTraceID`~~ done (Phase 3);
+auth mw uses `ctxkit.WithUserID`; `httpkit/client` forwards correlation + traceparent on outbound requests.
+**Deps:** none.
 
 ---
 
@@ -190,7 +191,14 @@ func handler(r *http.Request) (any, error) {
 
 ---
 
-## Phase 3 — `tracer` (Distributed Tracing)
+## Phase 3 — `tracer` (Distributed Tracing) ✅ DONE
+
+**Shipped files:** `tracer/tracer.go` (`Tracer`, `Span`, `SpanContext`, `SpanKind` consts, `SpanOption` +
+`WithSpanKind`/`WithAttributes`, mockgen directive), `tracer/config.go` (`Config` + `DefaultConfig()` +
+`Validate()`), `tracer/options.go` (`WithLogger`), `tracer/otel.go` (`NewOTel` — OTLP/gRPC exporter + SDK
+`TracerProvider`), `tracer/noop.go` (`NewNoOp`), `tracer/tracer__test.go`, `tracer/otel_integration_test.go`
+(short-guarded), `tracer/README.md`. Mock generated into `mocks/tracer/mock_tracer.go`. Also added
+`httpkit/middleware/tracing.go` (`Tracing(t)` + `tracing_test.go`).
 
 Interface-first tracing, OTel OTLP-gRPC backend + `NoOp`. Server middleware starts a span/request, extracts &
 propagates W3C trace context, publishes `trace_id` via `ctxkit`.
