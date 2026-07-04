@@ -17,6 +17,7 @@ A shared Go SDK (module `github.com/biairmal/go-sdk`, Go 1.25.1) — a collectio
 | Package | Role |
 |---|---|
 | `config` | Viper-based loader; `.env` loading via godotenv; `${VAR}` substitution in config files |
+| `ctxkit` | Canonical typed context keys + accessors (request/correlation/trace/user IDs); `LoggerExtractor()` for automatic log fields |
 | `errorz` | `*Error` type with code/message/source/meta; sentinel errors (`ErrNotFound`, …); constructors (`NotFound()`, `BadRequest()`, …) that wrap sentinels for `errors.Is` |
 | `httpkit` | Handler adapter, middleware chain, response envelope, health/readiness endpoints, thin HTTP client |
 | `logger` | `Logger` interface; Zerolog backend; no-op for tests |
@@ -86,9 +87,21 @@ These are **MUST**-level unless stated otherwise. They are derived from existing
 
 - Data-layer and I/O functions take **`context.Context` as the first parameter**.
 - Constructors are named **`NewX`** (e.g. `NewSQLRepository`, `NewDB`).
-- Configurable constructors use the **functional-options pattern**: a `WithX` function returns an option that mutates the receiver, applied via `for _, opt := range opts { opt(r) }`. Options must be nil/zero-safe.
+- **Configuration values go in a `Config` struct, not in `WithX` options** (see [Configuration](#configuration) below). Functional `WithX` options are reserved for **optional dependencies and non-serializable behavior** (loggers, alternate `http.Client`, callbacks, custom funcs). A `WithX` returns an option that mutates the receiver, applied via `for _, opt := range opts { opt(r) }`; options must be nil/zero-safe.
 - Prefer **interface before implementation** — define the contract (`Repository[T,ID]`, `redis.Client`) and return it from constructors where it aids testability.
 - **Declare the `error` interface in signatures — never the concrete `*errorz.Error`.** Construct `errorz` *values* inside implementations and return them as `error`; callers extract with `errors.As`/`errors.Is` (or predicate helpers like `repository.IsNotFound`). Returning a concrete `*errorz.Error` invites the Go typed-nil bug (a nil `*errorz.Error` is a **non-nil** `error`) and couples every implementer to errorz. This is how `repository.Repository` already works ([repository/repository.go](repository/repository.go)).
+
+### Configuration
+
+Configuration is **struct-first, YAML-first** so a consuming microservice can embed an SDK package's `Config` into its own app config and populate everything from a single file via [`config.Load`](config/config.go) (Viper + mapstructure). This is the established shape for `sqlkit.New(ctx, *Config)`, `redis.NewClient(*Config)`, and `logger.NewZerolog(*Options)`.
+
+- **Expose an exported `Config` struct.** Every serializable field carries a **`mapstructure:"snake_case"`** tag; nested config structs are tagged too. Without tags, mapstructure won't split camelCase (`MaxOpenConns` would only bind to YAML `maxopenconns`, never `max_open_conns`).
+- **Non-serializable fields get `mapstructure:"-"`** (funcs, interfaces — e.g. `logger.Options.ContextExtractor`). These are set in code, not YAML.
+- **Provide `DefaultConfig()`** with sane defaults, and have `New` fill zero-valued fields from it so YAML only needs to override what differs.
+- **Provide `Validate() error`** returning an `errorz` error (e.g. `errorz.BadRequest()`); call it inside `New`.
+- **Constructor shape:** pure → `New(cfg Config, opts ...Option)`; I/O → `New(ctx, cfg, opts ...Option)`. **Required live dependencies are positional** constructor params (e.g. a `redis.Client`, `*sqlkit.DB`); `WithX` options are only for **optional** deps and non-serializable behavior.
+- **Rule of thumb:** anything YAML can hold → a tagged `Config` field; anything it can't (a live client, a logger, a callback) → a positional param or a `WithX` option.
+- `time.Duration` (`"5s"`) and comma-slices decode out of the box — `config.Load` uses Viper's default `Unmarshal` hooks. No per-package decode wiring needed.
 
 ### Tests
 
@@ -126,6 +139,7 @@ A change is **not complete** until every box is checked:
 - [ ] No new **unjustified cross-package imports**.
 - [ ] If a package was added, the [package map](#package-map) row exists.
 - [ ] Public API uses stdlib types; constructors are `NewX`; options are `WithX`.
+- [ ] Any configuration is an exported `Config` struct with **`mapstructure` snake_case tags** (non-serializable fields tagged `-`), a `DefaultConfig()`, and a `Validate()`; `WithX` is used only for optional deps / non-serializable behavior.
 
 ---
 
@@ -133,6 +147,7 @@ A change is **not complete** until every box is checked:
 
 | Document | What it covers |
 |---|---|
+| [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) | Roadmap for the observability/tracing/auth/reliability packages (ctxkit, tracer, auth, metrics, ratelimit, circuitbreaker, lifecycle) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layering model, error-layer separation, dependency direction |
 | [docs/PATTERNS.md](docs/PATTERNS.md) | Copy-paste templates: options, sentinel errors, table-driven tests, context, leader/follower |
 | [docs/NEW_PACKAGE_CHECKLIST.md](docs/NEW_PACKAGE_CHECKLIST.md) | Step-by-step for adding a sub-package |
