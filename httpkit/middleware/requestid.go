@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
+
+	"github.com/biairmal/go-sdk/ctxkit"
 )
 
 // requestIDKey is the context key for the request ID.
@@ -28,7 +30,10 @@ func RequestID() func(http.Handler) http.Handler {
 			if id == "" {
 				id = generateRequestID()
 			}
+			// Store under both the exported RequestIDKey (back-compat for existing
+			// readers) and the canonical ctxkit key (picked up by ctxkit.LoggerExtractor).
 			ctx := context.WithValue(r.Context(), RequestIDKey, id)
+			ctx = ctxkit.WithRequestID(ctx, id)
 			w.Header().Set(RequestIDHeader, id)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
