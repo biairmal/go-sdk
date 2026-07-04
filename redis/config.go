@@ -11,44 +11,44 @@ const (
 )
 
 type Config struct {
-	Mode Mode
+	Mode Mode `mapstructure:"mode"`
 
 	// Standalone configuration
-	Address  string
-	Password string
-	DB       int // Note: Cluster mode doesn't support DB selection (always 0)
+	Address  string `mapstructure:"address"`
+	Password string `mapstructure:"password"`
+	DB       int    `mapstructure:"db"` // Note: Cluster mode doesn't support DB selection (always 0)
 
 	// Sentinel configuration
-	MasterName       string
-	SentinelAddrs    []string
-	SentinelPassword string // Password for sentinel instances themselves
+	MasterName       string   `mapstructure:"master_name"`
+	SentinelAddrs    []string `mapstructure:"sentinel_addrs"`
+	SentinelPassword string   `mapstructure:"sentinel_password"` // Password for sentinel instances themselves
 
 	// Cluster configuration
-	ClusterAddrs []string
+	ClusterAddrs []string `mapstructure:"cluster_addrs"`
 
 	// TLS configuration (all modes)
-	TLSEnabled bool
-	TLSCert    string
-	TLSKey     string
-	TLSCA      string
+	TLSEnabled bool   `mapstructure:"tls_enabled"`
+	TLSCert    string `mapstructure:"tls_cert"`
+	TLSKey     string `mapstructure:"tls_key"`
+	TLSCA      string `mapstructure:"tls_ca"`
 
 	// ACL authentication (Redis 6+)
-	Username string // default is "default"
+	Username string `mapstructure:"username"` // default is "default"
 
 	// Common settings
-	PoolSize     int
-	MinIdleConns int
-	MaxRetries   int
-	DialTimeout  time.Duration
-	ReadTimeout  time.Duration
-	WriteTimeout time.Duration
-	PoolTimeout  time.Duration
+	PoolSize     int           `mapstructure:"pool_size"`
+	MinIdleConns int           `mapstructure:"min_idle_conns"`
+	MaxRetries   int           `mapstructure:"max_retries"`
+	DialTimeout  time.Duration `mapstructure:"dial_timeout"`
+	ReadTimeout  time.Duration `mapstructure:"read_timeout"`
+	WriteTimeout time.Duration `mapstructure:"write_timeout"`
+	PoolTimeout  time.Duration `mapstructure:"pool_timeout"`
 
 	// Cluster specific
-	ReadOnly       bool // Allow reads from replicas
-	RouteByLatency bool // Route to lowest latency node
-	RouteRandomly  bool // Distribute reads randomly
-	MaxRedirects   int  // Max MOVED/ASK redirects
+	ReadOnly       bool `mapstructure:"read_only"`        // Allow reads from replicas
+	RouteByLatency bool `mapstructure:"route_by_latency"` // Route to lowest latency node
+	RouteRandomly  bool `mapstructure:"route_randomly"`   // Distribute reads randomly
+	MaxRedirects   int  `mapstructure:"max_redirects"`    // Max MOVED/ASK redirects
 }
 
 func DefaultConfig() *Config {

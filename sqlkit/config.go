@@ -8,10 +8,10 @@ import (
 
 // Config is the main configuration struct for sqlkit.
 type Config struct {
-	Leader    DBConfig     // Leader (write) database configuration
-	Followers []DBConfig   // Follower (read) database configurations (optional)
-	Pool      PoolConfig   // Connection pool settings
-	Health    HealthConfig // Health check settings
+	Leader    DBConfig     `mapstructure:"leader"`    // Leader (write) database configuration
+	Followers []DBConfig   `mapstructure:"followers"` // Follower (read) database configurations (optional)
+	Pool      PoolConfig   `mapstructure:"pool"`      // Connection pool settings
+	Health    HealthConfig `mapstructure:"health"`    // Health check settings
 }
 
 // Validate validates the configuration.
@@ -33,15 +33,15 @@ func (c *Config) Validate() error {
 
 // DBConfig is the configuration for a single database connection.
 type DBConfig struct {
-	Driver         string        // Database driver: "postgres", "mysql", "sqlite3"
-	Host           string        // Database host
-	Port           int           // Database port
-	Database       string        // Database name
-	Username       string        // Database username
-	Password       string        // Database password
-	SSLMode        string        // SSL mode: "disable", "require", "verify-ca", "verify-full" (postgres)
-	ConnectTimeout time.Duration // Connection timeout (default: 5s)
-	MaxRetries     int           // Maximum connection retry attempts (default: 3)
+	Driver         string        `mapstructure:"driver"`          // Database driver: "postgres", "mysql", "sqlite3"
+	Host           string        `mapstructure:"host"`            // Database host
+	Port           int           `mapstructure:"port"`            // Database port
+	Database       string        `mapstructure:"database"`        // Database name
+	Username       string        `mapstructure:"username"`        // Database username
+	Password       string        `mapstructure:"password"`        // Database password
+	SSLMode        string        `mapstructure:"ssl_mode"`        // SSL mode: disable|require|verify-ca|verify-full
+	ConnectTimeout time.Duration `mapstructure:"connect_timeout"` // Connection timeout (default: 5s)
+	MaxRetries     int           `mapstructure:"max_retries"`     // Maximum connection retry attempts (default: 3)
 }
 
 // DSN generates a database-specific connection string.
@@ -89,10 +89,10 @@ func (c *DBConfig) DSN() string {
 
 // PoolConfig is the connection pool configuration.
 type PoolConfig struct {
-	MaxOpenConns    int           // Maximum open connections (default: 25)
-	MaxIdleConns    int           // Maximum idle connections (default: 5)
-	ConnMaxLifetime time.Duration // Maximum connection lifetime (default: 5m)
-	ConnMaxIdleTime time.Duration // Maximum connection idle time (default: 1m)
+	MaxOpenConns    int           `mapstructure:"max_open_conns"`     // Maximum open connections (default: 25)
+	MaxIdleConns    int           `mapstructure:"max_idle_conns"`     // Maximum idle connections (default: 5)
+	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`  // Maximum connection lifetime (default: 5m)
+	ConnMaxIdleTime time.Duration `mapstructure:"conn_max_idle_time"` // Maximum connection idle time (default: 1m)
 }
 
 // DefaultPoolConfig returns a PoolConfig with default values.
@@ -107,9 +107,9 @@ func DefaultPoolConfig() PoolConfig {
 
 // HealthConfig is the health check configuration.
 type HealthConfig struct {
-	Enabled       bool          // Enable health checks (default: true)
-	CheckInterval time.Duration // Health check interval (default: 30s)
-	Timeout       time.Duration // Health check timeout (default: 5s)
+	Enabled       bool          `mapstructure:"enabled"`        // Enable health checks (default: true)
+	CheckInterval time.Duration `mapstructure:"check_interval"` // Health check interval (default: 30s)
+	Timeout       time.Duration `mapstructure:"timeout"`        // Health check timeout (default: 5s)
 }
 
 // DefaultHealthConfig returns a HealthConfig with default values.

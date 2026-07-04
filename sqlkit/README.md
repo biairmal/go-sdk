@@ -460,6 +460,45 @@ func findUser(ctx context.Context, db *sqlkit.DB, id int) (*User, error) {
 
 Pool and Health defaults are applied in `New()` when zero values are present.
 
+### YAML configuration
+
+`Config` and its nested structs carry `mapstructure` tags, so they embed into an app config and load from YAML via
+[`config.Load`](../config/README.md). `time.Duration` fields accept strings like `5s` / `5m`.
+
+```yaml
+db:
+  leader:
+    driver: postgres
+    host: db.internal
+    port: 5432
+    database: orders
+    username: app
+    password: ${DB_PASSWORD}
+    ssl_mode: require
+    connect_timeout: 5s
+    max_retries: 3
+  followers:
+    - { driver: postgres, host: replica1.internal, port: 5432, database: orders }
+  pool:
+    max_open_conns: 25
+    max_idle_conns: 5
+    conn_max_lifetime: 5m
+    conn_max_idle_time: 1m
+  health:
+    enabled: true
+    check_interval: 30s
+    timeout: 5s
+```
+
+```go
+type AppConfig struct {
+    DB sqlkit.Config `mapstructure:"db"`
+}
+var cfg AppConfig
+_ = config.Load(&cfg, config.Files("config.yaml"))
+db, err := sqlkit.New(ctx, &cfg.DB)
+```
+
 ### DBConfig
 
 Configuration for a single database connection.

@@ -69,28 +69,28 @@ const (
 type RotationConfig struct {
 	// Filename is the path to the log file. Backup files are stored in the same directory.
 	// Defaults to "app.log" if empty.
-	Filename string
+	Filename string `mapstructure:"filename"`
 
 	// MaxSize is the maximum size in megabytes before rotation occurs.
 	// Defaults to 100 MB if zero.
-	MaxSize int
+	MaxSize int `mapstructure:"max_size"`
 
 	// MaxBackups is the maximum number of rotated log files to retain.
 	// Zero means retain all backup files (subject to MaxAge).
-	MaxBackups int
+	MaxBackups int `mapstructure:"max_backups"`
 
 	// MaxAge is the maximum number of days to retain rotated log files.
 	// Files older than MaxAge days are automatically deleted.
 	// Zero means no age-based deletion.
-	MaxAge int
+	MaxAge int `mapstructure:"max_age"`
 
 	// Compress enables gzip compression for rotated log files.
 	// Compressed files have a .gz extension.
-	Compress bool
+	Compress bool `mapstructure:"compress"`
 
 	// LocalTime uses local timezone for backup file timestamps.
 	// If false, UTC timezone is used.
-	LocalTime bool
+	LocalTime bool `mapstructure:"local_time"`
 }
 
 // Options configures the logger behavior.
@@ -98,24 +98,25 @@ type RotationConfig struct {
 type Options struct {
 	// Level sets the minimum logging level. Messages below this level are ignored.
 	// Defaults to LevelInfo if not specified.
-	Level Level
+	Level Level `mapstructure:"level"`
 
 	// Output specifies where log messages are written.
 	// Defaults to OutputStdout if not specified.
-	Output Output
+	Output Output `mapstructure:"output"`
 
 	// Format specifies the output format (JSON or text).
 	// Defaults to FormatText if not specified.
 	// Note: File output always uses JSON format regardless of this setting.
-	Format Format
+	Format Format `mapstructure:"format"`
 
 	// Rotation configures file rotation when Output is OutputFile.
 	// If nil, default rotation settings are used.
-	Rotation *RotationConfig
+	Rotation *RotationConfig `mapstructure:"rotation"`
 
 	// ContextExtractor extracts fields from context.Context for automatic inclusion in logs.
 	// If nil, a default extractor is used that extracts request_id, user_id, and trace_id.
-	ContextExtractor ContextExtractor
+	// Set in code (e.g. ctxkit.LoggerExtractor()); not configurable via YAML.
+	ContextExtractor ContextExtractor `mapstructure:"-"`
 }
 
 // Field represents a single structured log field with a key-value pair.

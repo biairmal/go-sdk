@@ -234,6 +234,36 @@ log.Info("User data",
 - `Compress`: Enable gzip compression for rotated files (default: false)
 - `LocalTime`: Use local timezone for timestamps (default: false, uses UTC)
 
+### YAML configuration
+
+`Options` and `RotationConfig` carry `mapstructure` tags, so they embed into an app config and load from YAML via
+[`config.Load`](../config/README.md). The `ContextExtractor` field is not YAML-configurable (tagged `-`) — set it
+in code (e.g. `cfg.Logger.ContextExtractor = ctxkit.LoggerExtractor()`).
+
+```yaml
+logger:
+  level: info          # debug | info | warn | error | fatal | panic
+  output: stdout       # stdout | stderr | file
+  format: json         # json | text
+  rotation:            # used when output: file
+    filename: logs/app.log
+    max_size: 100      # MB
+    max_backups: 5
+    max_age: 30        # days
+    compress: true
+    local_time: false
+```
+
+```go
+type AppConfig struct {
+    Logger logger.Options `mapstructure:"logger"`
+}
+var cfg AppConfig
+_ = config.Load(&cfg, config.Files("config.yaml"))
+cfg.Logger.ContextExtractor = ctxkit.LoggerExtractor() // set in code, not YAML
+log := logger.NewZerolog(&cfg.Logger)
+```
+
 ## Examples
 
 ### HTTP Server with Request Logging
