@@ -12,6 +12,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=../mocks/redis/mock_redis.go -package=mockredis github.com/biairmal/go-sdk/redis Client,Pipeliner
+
+// Client is the Redis client interface implemented by all connection modes
+// (standalone, sentinel, cluster).
 type Client interface {
 	// Basic operations
 	Get(ctx context.Context, key string) (string, error)

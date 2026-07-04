@@ -3,11 +3,11 @@
 # Aggregates script modules from scripts/ (formatter, linter, test, security, deps, build).
 # Default goal: help (calls each script's help-* target). Use make check for CI; make install-tools to install tools.
 
-.PHONY: help help-formatter help-linter help-test help-security help-deps help-build
+.PHONY: help help-formatter help-linter help-test help-security help-deps help-build help-mocks
 .PHONY: format format-check install-formatter lint lint-fix install-linter
 .PHONY: test test-unit test-integration test-race bench coverage coverage-view
 .PHONY: vulncheck install-govulncheck deps-tidy deps-verify deps deps-outdated deps-upgrade
-.PHONY: build clean generate check ci install-tools
+.PHONY: build clean generate mocks check ci install-tools
 
 .DEFAULT_GOAL := help
 
@@ -23,6 +23,7 @@ include $(SCRIPTS_DIR)/test.mk
 include $(SCRIPTS_DIR)/security.mk
 include $(SCRIPTS_DIR)/deps.mk
 include $(SCRIPTS_DIR)/build.mk
+include $(SCRIPTS_DIR)/mocks.mk
 
 help: ## Show all targets (aggregates help from each script)
 	@echo ">>>> Go-SDK Makefile targets <<<<"
@@ -38,6 +39,8 @@ help: ## Show all targets (aggregates help from each script)
 	@$(MAKE) -s help-deps
 	$(ECHO_EMPTY)
 	@$(MAKE) -s help-build
+	$(ECHO_EMPTY)
+	@$(MAKE) -s help-mocks
 	$(ECHO_EMPTY)
 	@echo "# Other"
 	@echo "  make check         ## Run format-check, lint, test, coverage, vulncheck, deps-verify (CI)"

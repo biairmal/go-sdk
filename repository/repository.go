@@ -5,6 +5,8 @@ import (
 	"database/sql"
 )
 
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=../mocks/repository/mock_repository.go -package=mockrepository github.com/biairmal/go-sdk/repository Repository,ReadRepository,WriteRepository,TransactionalRepository
+
 // Repository is a generic repository interface for CRUD operations.
 // Uses Go generics for type safety.
 // TEntity is the entity type.

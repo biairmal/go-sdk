@@ -23,7 +23,7 @@ Follow these steps in order when adding a sub-package to the SDK. The rules refe
 ## 3. Design the API
 
 - **Interface before implementation** where it aids testing — define the contract, return it from the constructor (see `repository.Repository`, `redis.Client`).
-- Constructor named **`NewX`**; configurable variants use **functional `WithX` options** ([template](PATTERNS.md#constructors--functional-options)).
+- Constructor named **`NewX`**. **Configuration goes in an exported `mapstructure`-tagged `Config` struct** (with `DefaultConfig()` and `Validate()`), so consumers can embed it and load from YAML via `config.Load` — see the [Configuration convention](../AGENTS.md#configuration). Reserve **functional `WithX` options** for optional deps / non-serializable behavior (loggers, clients, callbacks); required deps are positional.
 - Exported signatures use **stdlib types** (`context.Context`, `http.Handler`, `*sql.DB`) — don't leak third-party types unless the package's purpose is wrapping one.
 - I/O functions take **`context.Context` first**.
 
@@ -36,6 +36,25 @@ Follow these steps in order when adding a sub-package to the SDK. The rules refe
 
 - **Table-driven** unit tests ([template](PATTERNS.md#table-driven-tests)).
 - Guard slow/integration-only paths with `testing.Short()`; put live-service tests in **`*_integration_test.go`**.
+
+### Mocks (if the package exports an interface consumers depend on)
+
+Consumers unit-test against SDK interfaces. For each new **exported interface** (e.g. `auth.Validator`,
+`tracer.Tracer`, `metrics.Recorder`), add a mock so services don't each re-generate one. See
+[TESTING.md](TESTING.md) for the full strategy and the fakes-vs-mocks split.
+
+- Add a **`//go:generate`** directive immediately above the interface (blank line before its doc comment), writing
+  into the interface's own subpackage in the separate `mocks` module. Use a **distinct package name** (`mock<pkg>`)
+  so mock type names never collide across packages and importing one mock doesn't pull in another's deps:
+
+  ```go
+  //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=../mocks/<pkg>/mock_<pkg>.go -package=mock<pkg> github.com/biairmal/go-sdk/<pkg> Iface1,Iface2
+  ```
+
+- Run **`make mocks`** from the repo root (regenerates via `go generate` + tidies the `mocks` module). Commit the
+  generated files with the interface change.
+- Prefer a **hand-written fake / `NoOp`** in the package itself (like `logger.NewNoOp()`) when a working stand-in is
+  more useful to consumers than call verification — ship it *and* the mock.
 
 ## 6. Documentation
 

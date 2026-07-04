@@ -108,6 +108,7 @@ Configuration is **struct-first, YAML-first** so a consuming microservice can em
 - Unit tests are **table-driven**: `[]struct{ name string; … }` iterated with `t.Run(tt.name, …)`. Same-package (`package errorz`, not `errorz_test`) unless there's a reason otherwise.
 - Guard slow/integration-only code with `testing.Short()`; integration tests that need a live service go in **`*_integration_test.go`** and run under `make test-integration` (no `-short`).
 - New behaviour ships with tests in the same change.
+- **New exported interfaces get a mock.** Add a `//go:generate mockgen` directive above the interface that writes into `mocks/<pkg>/` (package `mock<pkg>`, a name distinct from the real package), then run `make mocks` and commit the generated files. Ship a hand-written fake/`NoOp` in the package too where a working stand-in beats call verification (like `logger.NewNoOp()`). Mocks live in the separate `mocks` module so gomock stays out of the main module; see [docs/TESTING.md](docs/TESTING.md).
 
 ### Documentation
 
@@ -140,6 +141,7 @@ A change is **not complete** until every box is checked:
 - [ ] If a package was added, the [package map](#package-map) row exists.
 - [ ] Public API uses stdlib types; constructors are `NewX`; options are `WithX`.
 - [ ] Any configuration is an exported `Config` struct with **`mapstructure` snake_case tags** (non-serializable fields tagged `-`), a `DefaultConfig()`, and a `Validate()`; `WithX` is used only for optional deps / non-serializable behavior.
+- [ ] Every new exported interface has a **`//go:generate mockgen` directive** writing into `mocks/<pkg>/`; `make mocks` was run and the generated files committed.
 
 ---
 
@@ -148,6 +150,7 @@ A change is **not complete** until every box is checked:
 | Document | What it covers |
 |---|---|
 | [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) | Roadmap for the observability/tracing/auth/reliability packages (ctxkit, tracer, auth, metrics, ratelimit, circuitbreaker, lifecycle) |
+| [docs/TESTING.md](docs/TESTING.md) | How consumers test against SDK seams: fakes-first, the `mocks` module (gomock), miniredis, go-sqlmock |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layering model, error-layer separation, dependency direction |
 | [docs/PATTERNS.md](docs/PATTERNS.md) | Copy-paste templates: options, sentinel errors, table-driven tests, context, leader/follower |
 | [docs/NEW_PACKAGE_CHECKLIST.md](docs/NEW_PACKAGE_CHECKLIST.md) | Step-by-step for adding a sub-package |

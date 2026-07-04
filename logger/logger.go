@@ -154,6 +154,8 @@ func F(key string, value any) Field {
 //	}
 type ContextExtractor func(ctx context.Context) []Field
 
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=../mocks/logger/mock_logger.go -package=mocklogger github.com/biairmal/go-sdk/logger Logger
+
 // Logger defines the contract for logging operations.
 // All logger implementations must satisfy this interface.
 //

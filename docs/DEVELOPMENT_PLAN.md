@@ -52,6 +52,11 @@ circuit breaking, and graceful shutdown.
 - Signatures return `error`, never `*errorz.Error` (typed-nil trap). Wrap causes + attach an `errorz` code;
   callers compare via `errors.Is` on sentinels.
 - Optional `logger.Logger` only where there is real internal state; guard every call `if l == nil { return }`.
+- **Every exported interface ships a mock.** Add a `//go:generate mockgen` directive above the interface writing
+  into `mocks/<pkg>/` (package `mock<pkg>`), then `make mocks`. So: `tracer.Tracer`, `auth.Validator`/`Claims`/
+  `Issuer`, `metrics.Recorder`, `ratelimit.Limiter`, `circuitbreaker.Breaker`, `validator.Validator`,
+  `lifecycle.Closer` each get one. Also ship a hand-written `NoOp`/fake where a stand-in beats call verification.
+  See [TESTING.md](TESTING.md) and the [new-package checklist](NEW_PACKAGE_CHECKLIST.md).
 - I/O funcs take `context.Context` first (`noctx`). Files `lower_with_underscores.go`. Tests same-package,
   `*__test.go`, table-driven. Integration tests `*_integration_test.go`, `t.Skip` under `testing.Short()`.
 - Linters: line ≤ 120, func ≤ 100 lines / 50 stmts, cyclomatic < 15, cognitive < 25. Split big constructors
