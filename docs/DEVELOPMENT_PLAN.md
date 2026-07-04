@@ -11,7 +11,7 @@ Phases are listed in **build order** — each builds on the ones above it.
 | # | Package | What it adds | Status |
 |---|---|---|---|
 | 1 | `ctxkit` | Canonical request-scoped context keys + logger extractor | ✅ **Done** |
-| 2 | `validator` | Struct validation via tags (wraps go-playground/validator) | ⬜ Planned |
+| 2 | `validator` | Struct validation via tags (wraps go-playground/validator) | ✅ **Done** |
 | 3 | `tracer` | Distributed tracing (OpenTelemetry) | ⬜ Planned |
 | 4 | `auth` | Token issuing + validation, monolith-first | ⬜ Planned |
 | 5 | `metrics` | Request instrumentation (Prometheus) | ⬜ Planned |
@@ -97,7 +97,13 @@ Dependency direction: `ctxkit → logger` (one-way); `logger` stays a leaf, unch
 
 ---
 
-## Phase 2 — `validator` (Struct validation via tags)
+## Phase 2 — `validator` (Struct validation via tags) ✅ DONE
+
+**Shipped files:** `validator/config.go` (`Config{TagName,FieldNameTag}` + `DefaultConfig()` + `Validate()`),
+`validator/validator.go` (`Validator` interface, `FieldLevel` alias, `New(cfg, ...Option)`, mockgen directive),
+`validator/playground.go` (go-playground/validator/v10 backend + `errorz` translation), `validator/options.go`
+(`WithCustomValidation`), `validator/validator__test.go`, `validator/README.md`. Mock generated into
+`mocks/validator/mock_validator.go`.
 
 Thin wrapper around `github.com/go-playground/validator/v10` for validating structs by their `validate` tags,
 returning SDK-native `errorz` errors so validation failures flow through `httpkit` as clean 400s with per-field
@@ -132,11 +138,11 @@ func DefaultConfig() Config { return Config{TagName: "validate"} }
 
 // Validator validates values against struct tags.
 type Validator interface {
-    // Struct validates s using its struct tags. Returns nil when valid, or an error
+    // ValidateStruct validates s using its struct tags. Returns nil when valid, or an error
     // (errorz code CodeBadRequest) whose Meta carries per-field messages under "fields".
-    Struct(s any) error
-    // Var validates a single value against a tag expression, e.g. Var(email, "required,email").
-    Var(field any, tag string) error
+    ValidateStruct(s any) error
+    // ValidateVar validates a single value against a tag expression, e.g. ValidateVar(email, "required,email").
+    ValidateVar(field any, tag string) error
     // Register adds a custom validation function under a tag name (also settable via option).
     Register(tag string, fn func(fl FieldLevel) bool) error
 }
@@ -159,7 +165,7 @@ func New(cfg Config, opts ...Option) Validator
 ### Error translation
 On failure the backend receives `validator.ValidationErrors`; translate each field error into a human-readable
 message and return `errorz.BadRequest().WithMessage("validation failed").WithMeta("fields", map[string]string{...})`.
-Non-validation errors (e.g. passing a non-struct to `Struct`) are wrapped with `errorz.Wrap(err).WithCode(
+Non-validation errors (e.g. passing a non-struct to `ValidateStruct`) are wrapped with `errorz.Wrap(err).WithCode(
 errorz.CodeInternal)`. `httpkit/handler/status.go` already maps `CodeBadRequest` → 400, and the response envelope
 surfaces `Meta`, so field errors reach the client with no extra wiring.
 
@@ -175,7 +181,7 @@ type CreateUser struct {
 func handler(r *http.Request) (any, error) {
     var body CreateUser
     if err := serializer.ParseJSON(r.Body, &body); err != nil { return nil, err }
-    if err := v.Struct(body); err != nil { return nil, err } // → 400 with per-field messages
+    if err := v.ValidateStruct(body); err != nil { return nil, err } // → 400 with per-field messages
     // ... happy path
 }
 ```

@@ -27,6 +27,7 @@ A shared Go SDK (module `github.com/biairmal/go-sdk`, Go 1.25.1) — a collectio
 | `repository/sql` | `SQLRepository[T,ID]` — reflection-based CRUD using `db` struct tags; multi-dialect placeholders; `WithDialect`, `WithSelectColumns`, `WithIDColumn` options |
 | `repository/cache` | `CachedRepository[T,ID]` decorator (WIP); wraps any `Repository`; write-through / write-around / write-behind strategies |
 | `serializer` | Thin wrappers around `encoding/json` (`ToJSON`, `ParseJSON`) |
+| `validator` | `Validator` interface wrapping go-playground/validator/v10; struct-tag + single-value validation; `errorz` field errors |
 | `common/dto` | `PageRequest` / `PageResponse` DTOs |
 
 > When you add a package, **add a row here** (see [Authoring rules](#authoring-rules)).

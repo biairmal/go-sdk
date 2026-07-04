@@ -1,13 +1,13 @@
 // Package serializer provides thin wrappers around [encoding/json] for
-// marshalling Go values to JSON bytes and unmarshalling JSON bytes back into
-// Go values. It adds no configuration or state; all behaviour is delegated
+// marshaling Go values to JSON bytes and unmarshalling JSON bytes back into
+// Go values. It adds no configuration or state; all behavior is delegated
 // directly to the standard library.
 package serializer
 
 import "encoding/json"
 
 // ToJSON marshals v to its JSON encoding.
-// It returns an error if v contains types that cannot be marshalled
+// It returns an error if v contains types that cannot be marshaled
 // (e.g. channels, functions, or non-finite floating-point values).
 func ToJSON(v any) ([]byte, error) {
 	return json.Marshal(v)

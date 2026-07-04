@@ -5,7 +5,7 @@ package cache
 // - WriteThroughStrategy: re-fetches from DB after update and writes the fresh row to cache
 // - WriteBehindStrategy: queues cache updates asynchronously (not recommended for most cases)
 //
-// WriteAroundStrategy is the zero value so that a zero-initialised Option is safe by default.
+// WriteAroundStrategy is the zero value so that a zero-initialized Option is safe by default.
 //
 // See specs/REPOSITORY_SPEC.md section 8 for detailed specification.
 type CacheStrategy int
@@ -13,7 +13,7 @@ type CacheStrategy int
 const (
 	// WriteAroundStrategy invalidates cache on update.
 	// Next read will fetch from database and repopulate the cache.
-	// This is the zero value, so it is the default for any zero-initialised Option.
+	// This is the zero value, so it is the default for any zero-initialized Option.
 	WriteAroundStrategy CacheStrategy = iota
 
 	// WriteThroughStrategy re-fetches the entity from the database after every update
