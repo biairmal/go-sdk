@@ -16,7 +16,7 @@ Phases are listed in **build order** — each builds on the ones above it.
 | 4 | `auth` | Token issuing + validation, monolith-first | ✅ **Done** |
 | 5 | `metrics` | Request instrumentation (Prometheus) | ✅ **Done** |
 | 6 | `ratelimit` | Rate limiting (in-memory + Redis) | ✅ **Done** |
-| 7 | `circuitbreaker` | Outbound dependency protection | ⬜ Planned |
+| 7 | `circuitbreaker` | Outbound dependency protection | ✅ **Done** |
 | 8 | `lifecycle` | Graceful shutdown | ⬜ Planned |
 
 Ordered **easiest-independent-first**. The only hard constraint: `ctxkit` (Phase 1, done) must precede
@@ -372,7 +372,28 @@ backend error → fail-open by default. `KeyByUser` reads `ctxkit.UserID` (place
 
 ---
 
-## Phase 7 — `circuitbreaker`
+## Phase 7 — `circuitbreaker` ✅ DONE
+
+**Shipped files:** `circuitbreaker/config.go` (`Config{FailureThreshold,FailureRatio,OpenTimeout,HalfOpenMaxCalls}`
+mapstructure-tagged + `DefaultConfig()` + `Validate()` + `withDefaults`), `circuitbreaker/breaker.go`
+(`State` enum + `String()`, `ErrOpen` sentinel wrapping `errorz.ErrServiceUnavailable` + `wrapOpen()`, `Breaker`
+interface, `Do[T]` generic free function, `breaker` struct, `NewBreaker(cfg, ...Option)`, mockgen directive),
+`circuitbreaker/state.go` (state-machine internals: `Execute`/`State` methods, `before`/`after` admission +
+outcome recording with a generation counter so a stale in-flight call's result can't corrupt a newer state,
+`onClosedResultLocked`/`shouldTripLocked`, `onHalfOpenResultLocked`, `setStateLocked`, `notify` — callback fires
+outside the lock so it may safely re-enter the breaker), `circuitbreaker/options.go` (`WithOnStateChange`,
+`WithIsSuccessful`, `WithClock` — the last is beyond the original file list, added for deterministic
+`OpenTimeout`-expiry tests per the "injectable clock" requirement below), `circuitbreaker/config__test.go`,
+`circuitbreaker/breaker__test.go` (consecutive/ratio trip, half-open close/reopen/concurrency-limit/stale-result,
+panic safety, callback reentrancy, custom success classifier, `Do[T]`, a concurrency stress test), `circuitbreaker/README.md`.
+Mock generated into `mocks/circuitbreaker/mock_circuitbreaker.go`; `./circuitbreaker/...` added to `MOCK_PKGS`.
+
+**Deviations from the original spec:** (1) added `WithClock` (not in the original Options table, but the phase
+prose calls for an "injectable clock"). (2) `NewBreaker(cfg, ...Option) Breaker` does **not** call
+`cfg.Validate()` itself — it only fills zero-valued fields via `withDefaults`, matching `ratelimit.NewInMemory`'s
+precedent (a pure, non-I/O constructor); callers that load `Config` from YAML should call `Validate()` themselves
+before constructing. (3) `FailureRatio` reuses `FailureThreshold` as its minimum-sample gate rather than adding
+an undocumented `MinRequests` field, so the ratio rule never trips on a handful of unlucky calls.
 
 Own lean closed→open→half-open state machine, no third-party dep. Protects outbound dependency calls.
 

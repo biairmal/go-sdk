@@ -32,6 +32,7 @@ A shared Go SDK (module `github.com/biairmal/go-sdk`, Go 1.25.1) — a collectio
 | `auth` | `Validator`/`Claims`/`Issuer`; remote (mappable) + HS256/RS256/JWKS; config-driven route `Policy`; TTL cache; token issuing; server middleware (`httpkit/middleware.Auth`) |
 | `metrics` | `Recorder` interface; Prometheus backend + `NoOp`; dynamic metric registration; HTTP request count/duration/in-flight middleware (`httpkit/middleware.Metrics`) |
 | `ratelimit` | `Limiter` interface; in-memory token bucket (`golang.org/x/time/rate`) + Redis sliding-window (Lua) backends; 429 middleware with headers (`httpkit/middleware.RateLimit`) |
+| `circuitbreaker` | `Breaker` interface; own closed/open/half-open state machine (no third-party dep); `Do[T]` generic helper; `ErrOpen`→503 |
 | `common/dto` | `PageRequest` / `PageResponse` DTOs |
 
 > When you add a package, **add a row here** (see [Authoring rules](#authoring-rules)).
