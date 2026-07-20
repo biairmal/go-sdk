@@ -14,7 +14,7 @@ Phases are listed in **build order** — each builds on the ones above it.
 | 2 | `validator` | Struct validation via tags (wraps go-playground/validator) | ✅ **Done** |
 | 3 | `tracer` | Distributed tracing (OpenTelemetry) | ✅ **Done** |
 | 4 | `auth` | Token issuing + validation, monolith-first | ✅ **Done** |
-| 5 | `metrics` | Request instrumentation (Prometheus) | ⬜ Planned |
+| 5 | `metrics` | Request instrumentation (Prometheus) | ✅ **Done** |
 | 6 | `ratelimit` | Rate limiting (in-memory + Redis) | ⬜ Planned |
 | 7 | `circuitbreaker` | Outbound dependency protection | ⬜ Planned |
 | 8 | `lifecycle` | Graceful shutdown | ⬜ Planned |
@@ -299,7 +299,18 @@ jwks_url,issuer,audience}`, `issuer{algorithm,hs256_secret,rs256_private_key_pat
 
 ---
 
-## Phase 5 — `metrics` (Prometheus)
+## Phase 5 — `metrics` (Prometheus) ✅ DONE
+
+**Shipped files:** `metrics/config.go` (`Config{Namespace,HTTPBuckets}` mapstructure-tagged + `DefaultConfig()` +
+`Validate()` — namespace format + positive-bucket checks), `metrics/metrics.go` (`Recorder{CounterInc,
+HistogramObserve,GaugeAdd}`, `Labels`, `HTTPRequestsTotal`/`HTTPRequestDuration`/`HTTPRequestsInFlight` name
+consts, mockgen directive), `metrics/prometheus.go` (`NewPrometheus(cfg, ...Option)` — dynamic per-name metric
+registration cached in maps guarded by `sync.RWMutex`; standard HTTP metrics pre-registered eagerly; registration
+and label-set-mismatch failures logged via the optional logger, never returned — `Recorder` methods have no error
+return), `metrics/noop.go` (`NewNoOp`), `metrics/options.go` (`WithRegisterer`, `WithLogger`),
+`metrics/metrics__test.go`, `metrics/README.md`. Mock generated into `mocks/metrics/mock_metrics.go`;
+`./metrics/...` added to `MOCK_PKGS`. Also added `httpkit/middleware/metrics.go` (`Metrics(rec, *MetricsOptions{
+PathNormalizer})` + `metrics_test.go`).
 
 `Recorder` abstraction (Prometheus backend + `NoOp`) so `httpkit/middleware` stays Prometheus-free.
 
