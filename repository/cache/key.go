@@ -20,7 +20,7 @@ import (
 // See specs/REPOSITORY_SPEC.md section 9 for detailed specification.
 type KeyGenerator interface {
 	Generate(prefix string, id any) string
-	GenerateFromFilter(opts repository.ListOptions) string
+	GenerateFromFilter(opts *repository.ListOptions) string
 }
 
 type DefaultKeyGenerator struct {
@@ -38,7 +38,7 @@ func (g *DefaultKeyGenerator) Generate(prefix string, id any) string {
 
 // GenerateFromFilter hashes the filter options to create a consistent key.
 // Example: "user:list:a3f5c2d1e8b4c7f0:limit:20:offset:0"
-func (g *DefaultKeyGenerator) GenerateFromFilter(opts repository.ListOptions) string {
+func (g *DefaultKeyGenerator) GenerateFromFilter(opts *repository.ListOptions) string {
 	hash := hashFilter(opts.Filter, opts.Sorts)
 	return fmt.Sprintf("%s:list:%s:limit:%d:offset:%d",
 		g.namespace, hash, opts.Pagination.Limit, opts.Pagination.Offset)

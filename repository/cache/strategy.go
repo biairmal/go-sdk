@@ -8,6 +8,8 @@ package cache
 // WriteAroundStrategy is the zero value so that a zero-initialized Option is safe by default.
 //
 // See specs/REPOSITORY_SPEC.md section 8 for detailed specification.
+//
+//nolint:revive // CacheStrategy is an established public API name (consumed by dependents); renaming would break them
 type CacheStrategy int
 
 const (

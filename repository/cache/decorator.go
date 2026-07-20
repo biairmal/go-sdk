@@ -121,6 +121,7 @@ func (r *CachedRepository[TEntity, TID]) GetByID(ctx context.Context, id TID) (*
 	// deserialized as &TEntity{} on the next hit, breaking nil-checks downstream.
 	if entity != nil {
 		if data, jsonErr := serializer.ToJSON(entity); jsonErr == nil {
+			//nolint:errcheck // best-effort cache write; a Redis outage must not fail the read
 			_ = r.cache.Set(ctx, key, data, r.opt.ttl)
 		}
 	}
@@ -146,17 +147,18 @@ func (r *CachedRepository[TEntity, TID]) Update(ctx context.Context, id TID, ent
 		// the cache never serves a stale entry.
 		if fresh, fetchErr := r.underlying.GetByID(ctx, id); fetchErr == nil && fresh != nil {
 			if data, jsonErr := serializer.ToJSON(fresh); jsonErr == nil {
+				//nolint:errcheck // best-effort cache write; a Redis outage must not fail the update
 				_ = r.cache.Set(ctx, key, data, r.opt.ttl)
 				break
 			}
 		}
+		//nolint:errcheck // best-effort cache invalidation
 		_ = r.cache.Del(ctx, key)
 
-	case WriteBehindStrategy:
-		// Async queuing is not yet implemented. Fall back to write-around (invalidate)
-		// so reads see fresh data rather than a stale cache entry.
-		fallthrough
-	case WriteAroundStrategy:
+	// WriteBehind (async queuing) is not implemented yet; it falls back to
+	// write-around (invalidate) so reads see fresh data rather than a stale entry.
+	case WriteBehindStrategy, WriteAroundStrategy:
+		//nolint:errcheck // best-effort cache invalidation
 		_ = r.cache.Del(ctx, key)
 	}
 
@@ -169,6 +171,7 @@ func (r *CachedRepository[TEntity, TID]) Delete(ctx context.Context, id TID) err
 		return err
 	}
 
+	//nolint:errcheck // best-effort cache invalidation
 	_ = r.cache.Del(ctx, r.buildEntityCacheKey(id))
 	return nil
 }
