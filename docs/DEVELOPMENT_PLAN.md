@@ -15,7 +15,7 @@ Phases are listed in **build order** — each builds on the ones above it.
 | 3 | `tracer` | Distributed tracing (OpenTelemetry) | ✅ **Done** |
 | 4 | `auth` | Token issuing + validation, monolith-first | ✅ **Done** |
 | 5 | `metrics` | Request instrumentation (Prometheus) | ✅ **Done** |
-| 6 | `ratelimit` | Rate limiting (in-memory + Redis) | ⬜ Planned |
+| 6 | `ratelimit` | Rate limiting (in-memory + Redis) | ✅ **Done** |
 | 7 | `circuitbreaker` | Outbound dependency protection | ⬜ Planned |
 | 8 | `lifecycle` | Graceful shutdown | ⬜ Planned |
 
@@ -335,16 +335,26 @@ Tests use isolated `prometheus.NewRegistry()`. **Deps:** `github.com/prometheus/
 
 ---
 
-## Phase 6 — `ratelimit`
+## Phase 6 — `ratelimit` ✅ DONE
+
+**Shipped files:** `ratelimit/ratelimit.go` (`Limiter{Allow(ctx,key)(Result,error)}`, `Result{Allowed,Limit,
+Remaining,RetryAfter}`, mockgen directive), `ratelimit/config.go` (`Config{Backend,Rate,Burst,Window,MaxKeys}`
+mapstructure-tagged + `DefaultConfig()` + `Validate()` + `FromConfig(cfg, redisClient)`), `ratelimit/memory.go`
+(`NewInMemory` — per-key `golang.org/x/time/rate.Limiter`, opportunistic idle eviction every `sweepEvery` calls
+and when `MaxKeys` is reached), `ratelimit/redis.go` (`NewRedis` — Lua sliding-window log over a Redis sorted
+set, atomic trim+count+admit in one `Eval` round trip), `ratelimit/config__test.go`, `ratelimit/memory__test.go`,
+`ratelimit/redis__test.go` (fake `redis.Client`), `ratelimit/redis_integration_test.go` (`//go:build integration`,
+mirrors `redis/pipeline_integration_test.go`'s convention), `ratelimit/README.md`. Mock generated into
+`mocks/ratelimit/mock_ratelimit.go`; `./ratelimit/...` added to `MOCK_PKGS`. Also added
+`httpkit/middleware/ratelimit.go` (`RateLimit(l, keyFn, opts)`, `KeyByIP/KeyByUser/KeyByHeader`,
+`WithFailClosed`) + `ratelimit_test.go`.
+
+**Deviation from the original spec:** the redis backend needed atomicity beyond a single command (trim + count +
+conditionally admit), and `redis.Client` had no `Eval`/sorted-set support. Extended `redis.Client` with
+`Eval(ctx, script, keys, args...) (interface{}, error)` (+ mock) rather than downgrading to a fixed-window
+counter, so the redis backend is a true sliding-window log, not an approximation.
 
 `Limiter` interface, two backends: in-memory token bucket (monolith) + Redis distributed (scale-out).
-
-**Files:** `ratelimit/ratelimit.go` (`Limiter{Allow(ctx,key)(Result,error)}`, `Result{Allowed,Limit,Remaining,
-RetryAfter}`), `ratelimit/config.go` (`Config{backend, rate, burst, window, max_keys}` mapstructure-tagged +
-`DefaultConfig()` + `FromConfig(cfg, redisClient)` — selects backend), `ratelimit/memory.go`
-(`NewInMemory(cfg)`, `golang.org/x/time/rate`, idle eviction), `ratelimit/redis.go`
-(`NewRedis(client redis.Client, cfg)` — client positional, Lua sliding-window), tests, `ratelimit/README.md`,
-`httpkit/middleware/ratelimit.go` (`RateLimit(l, keyFn, opts)`, `KeyByIP/KeyByUser/KeyByHeader`, `WithFailClosed`).
 
 ```go
 type Config struct {

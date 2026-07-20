@@ -16,6 +16,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.33.0
 	go.opentelemetry.io/otel/sdk v1.33.0
 	go.opentelemetry.io/otel/trace v1.33.0
+	golang.org/x/time v0.9.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 

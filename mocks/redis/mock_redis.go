@@ -90,6 +90,26 @@ func (mr *MockClientMockRecorder) Del(ctx any, keys ...any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Del", reflect.TypeOf((*MockClient)(nil).Del), varargs...)
 }
 
+// Eval mocks base method.
+func (m *MockClient) Eval(ctx context.Context, script string, keys []string, args ...any) (any, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, script, keys}
+	for _, a := range args {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Eval", varargs...)
+	ret0, _ := ret[0].(any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Eval indicates an expected call of Eval.
+func (mr *MockClientMockRecorder) Eval(ctx, script, keys any, args ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, script, keys}, args...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Eval", reflect.TypeOf((*MockClient)(nil).Eval), varargs...)
+}
+
 // Exists mocks base method.
 func (m *MockClient) Exists(ctx context.Context, keys ...string) (int64, error) {
 	m.ctrl.T.Helper()

@@ -50,6 +50,12 @@ type Client interface {
 	Decr(ctx context.Context, key string) (int64, error)
 	IncrBy(ctx context.Context, key string, value int64) (int64, error)
 
+	// Eval executes a Lua script atomically against keys and args, returning
+	// the script's result (Lua numbers/strings/tables map to int64/string/
+	// []interface{}). For operations that need atomicity beyond a single
+	// command, e.g. ratelimit's sliding-window check-and-increment.
+	Eval(ctx context.Context, script string, keys []string, args ...interface{}) (interface{}, error)
+
 	// Pipeline and transaction support
 	Pipeline() Pipeliner
 	TxPipeline() Pipeliner
@@ -326,6 +332,13 @@ func (r *redisClient) Decr(ctx context.Context, key string) (int64, error) {
 // IncrBy increments a key by a value
 func (r *redisClient) IncrBy(ctx context.Context, key string, value int64) (int64, error) {
 	return r.client.IncrBy(ctx, key, value).Result()
+}
+
+// Eval executes a Lua script atomically against keys and args.
+func (r *redisClient) Eval(
+	ctx context.Context, script string, keys []string, args ...interface{},
+) (interface{}, error) {
+	return r.client.Eval(ctx, script, keys, args...).Result()
 }
 
 // Pipeline creates a pipeline for batch operations

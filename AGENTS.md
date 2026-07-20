@@ -22,7 +22,7 @@ A shared Go SDK (module `github.com/biairmal/go-sdk`, Go 1.25.1) — a collectio
 | `httpkit` | Handler adapter, middleware chain, response envelope, health/readiness endpoints, thin HTTP client |
 | `logger` | `Logger` interface; Zerolog backend; no-op for tests |
 | `sqlkit` | `*DB` wrapper over `database/sql`; leader/follower with round-robin and health fallback; connection pool config; transaction injection |
-| `redis` | `redis.Client` interface wrapping go-redis/v9; pipeline support |
+| `redis` | `redis.Client` interface wrapping go-redis/v9; pipeline support; `Eval` for atomic Lua scripts |
 | `repository` | Generic interfaces: `Repository[T,ID]`, `ReadRepository`, `WriteRepository`, `TransactionalRepository` |
 | `repository/sql` | `SQLRepository[T,ID]` — reflection-based CRUD using `db` struct tags; multi-dialect placeholders; `WithDialect`, `WithSelectColumns`, `WithIDColumn` options |
 | `repository/cache` | `CachedRepository[T,ID]` decorator (WIP); wraps any `Repository`; write-through / write-around / write-behind strategies |
@@ -31,6 +31,7 @@ A shared Go SDK (module `github.com/biairmal/go-sdk`, Go 1.25.1) — a collectio
 | `tracer` | `Tracer`/`Span` interfaces; OTel OTLP/gRPC backend + `NoOp`; W3C propagation; server middleware (`httpkit/middleware.Tracing`) |
 | `auth` | `Validator`/`Claims`/`Issuer`; remote (mappable) + HS256/RS256/JWKS; config-driven route `Policy`; TTL cache; token issuing; server middleware (`httpkit/middleware.Auth`) |
 | `metrics` | `Recorder` interface; Prometheus backend + `NoOp`; dynamic metric registration; HTTP request count/duration/in-flight middleware (`httpkit/middleware.Metrics`) |
+| `ratelimit` | `Limiter` interface; in-memory token bucket (`golang.org/x/time/rate`) + Redis sliding-window (Lua) backends; 429 middleware with headers (`httpkit/middleware.RateLimit`) |
 | `common/dto` | `PageRequest` / `PageResponse` DTOs |
 
 > When you add a package, **add a row here** (see [Authoring rules](#authoring-rules)).
