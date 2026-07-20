@@ -13,7 +13,7 @@ Phases are listed in **build order** — each builds on the ones above it.
 | 1 | `ctxkit` | Canonical request-scoped context keys + logger extractor | ✅ **Done** |
 | 2 | `validator` | Struct validation via tags (wraps go-playground/validator) | ✅ **Done** |
 | 3 | `tracer` | Distributed tracing (OpenTelemetry) | ✅ **Done** |
-| 4 | `auth` | Token issuing + validation, monolith-first | ⬜ Planned |
+| 4 | `auth` | Token issuing + validation, monolith-first | ✅ **Done** |
 | 5 | `metrics` | Request instrumentation (Prometheus) | ⬜ Planned |
 | 6 | `ratelimit` | Rate limiting (in-memory + Redis) | ⬜ Planned |
 | 7 | `circuitbreaker` | Outbound dependency protection | ⬜ Planned |
@@ -93,7 +93,7 @@ Dependency direction: `ctxkit → logger` (one-way); `logger` stays a leaf, unch
 `CorrelationIDHeader`). `httpkit/middleware/requestid.go` also writes `ctxkit.WithRequestID` now.
 
 **Remaining integration edits (apply as later phases land):** ~~tracer mw uses `ctxkit.WithTraceID`~~ done (Phase 3);
-auth mw uses `ctxkit.WithUserID`; `httpkit/client` forwards correlation + traceparent on outbound requests.
+~~auth mw uses `ctxkit.WithUserID`~~ done (Phase 4); `httpkit/client` forwards correlation + traceparent on outbound requests.
 **Deps:** none.
 
 ---
@@ -237,7 +237,23 @@ receiver) ship to Loki. No in-app log exporter needed. Trace↔log correlation a
 
 ---
 
-## Phase 4 — `auth` (Token Issuing + Validation, monolith-first)
+## Phase 4 — `auth` (Token Issuing + Validation, monolith-first) ✅ DONE
+
+**Shipped files:** `auth/validator.go` (`Validator` + `ValidatorFunc` + mockgen directive for `Validator,Claims,Issuer`),
+`auth/claims.go` (`Claims`, `mapClaims`, `NewClaims`, `getPath`, `ContextWithClaims`→`ctxkit.WithUserID`,
+`ClaimsFromContext`, `SubjectFromContext`), `auth/errors.go` (token sentinels wrapping `errorz.Unauthorized`),
+`auth/options.go` (shared `Option`: `WithExpectedIssuer`/`WithExpectedAudience`/`WithLeeway`/`WithPublicKey`/
+`WithJWKSURL`/`WithHTTPClient`), `auth/jwt.go` (shared local-JWT core; alg-pinned parser — **added beyond the
+original file list** to keep hs256/rs256 under the lint caps), `auth/hs256.go` (`NewHS256`), `auth/rs256.go`
+(`NewRS256` + PEM parsers), `auth/jwks.go` (`jwksCache`: RWMutex, TTL + unknown-kid-cooldown refresh, stale-on-failure),
+`auth/issuer.go` (`Issuer`, `NewHS256Issuer`/`NewRS256Issuer`, issue-time + construction options),
+`auth/remote.go` (`NewRemote`, `TokenForward`, `ClaimsMapping`, `RemoteConfig`; 401/403→401, else→502),
+`auth/policy.go` (`Policy`, `Rule`, `IsProtected`, `matchPattern`), `auth/cache.go` (`NewCached` TTL cache),
+`auth/config.go` (`Config` + `DefaultConfig`/`Validate`/`Policy`, `FromConfig`, `IssuerFromConfig`), tests
+(`auth/*__test.go`), `auth/README.md`, `httpkit/middleware/auth.go` (`Auth(v, WithPolicy(pol))` + `auth_test.go`).
+Mock generated into `mocks/auth/mock_auth.go`; `./auth/...` added to `MOCK_PKGS`. **Naming note:** validator-side
+expectations are `WithExpectedIssuer`/`WithExpectedAudience` and the claims injector is exported as
+`ContextWithClaims` (the spec's `WithIssuer`/`WithAudience`/`injectClaims` collided in-package or needed export).
 
 Reusable auth that works in a **monolith today** (in-process issue + validate) and splits into services **later**
 by config only. `Validator` interface is the seam. HTTP-agnostic core; HTTP adapter in `httpkit/middleware/auth.go`.

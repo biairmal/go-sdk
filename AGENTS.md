@@ -29,6 +29,7 @@ A shared Go SDK (module `github.com/biairmal/go-sdk`, Go 1.25.1) — a collectio
 | `serializer` | Thin wrappers around `encoding/json` (`ToJSON`, `ParseJSON`) |
 | `validator` | `Validator` interface wrapping go-playground/validator/v10; struct-tag + single-value validation; `errorz` field errors |
 | `tracer` | `Tracer`/`Span` interfaces; OTel OTLP/gRPC backend + `NoOp`; W3C propagation; server middleware (`httpkit/middleware.Tracing`) |
+| `auth` | `Validator`/`Claims`/`Issuer`; remote (mappable) + HS256/RS256/JWKS; config-driven route `Policy`; TTL cache; token issuing; server middleware (`httpkit/middleware.Auth`) |
 | `common/dto` | `PageRequest` / `PageResponse` DTOs |
 
 > When you add a package, **add a row here** (see [Authoring rules](#authoring-rules)).
