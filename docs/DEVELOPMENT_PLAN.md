@@ -17,7 +17,7 @@ Phases are listed in **build order** — each builds on the ones above it.
 | 5 | `metrics` | Request instrumentation (Prometheus) | ✅ **Done** |
 | 6 | `ratelimit` | Rate limiting (in-memory + Redis) | ✅ **Done** |
 | 7 | `circuitbreaker` | Outbound dependency protection | ✅ **Done** |
-| 8 | `lifecycle` | Graceful shutdown | ⬜ Planned |
+| 8 | `lifecycle` | Graceful shutdown | ✅ **Done** |
 
 Ordered **easiest-independent-first**. The only hard constraint: `ctxkit` (Phase 1, done) must precede
 `tracer`/`auth`/`metrics`, which write their context values through it. Everything else is independent —
@@ -418,20 +418,83 @@ failure re-opens. **Deps:** none.
 
 ---
 
-## Phase 8 — `lifecycle` (Graceful Shutdown)
+## Phase 8 — `lifecycle` (Graceful Shutdown) ✅ DONE
 
-Ordered, timeout-bounded shutdown across HTTP + resources (DB, Redis, tracer flush).
+**Shipped files:** `lifecycle/config.go` (`Config{DrainDelay,ShutdownTimeout,CloserTimeout}` mapstructure-tagged +
+`DefaultConfig()` — 5s/15s/15s + `Validate()` + unexported `withDefaults`), `lifecycle/closer.go` (`Closer`
+interface + mockgen directive, `CloserFunc`, `CloserFromTracer`/`CloserFromDB`/`CloserFromRedis` — all three
+**structural** (accept an inline `interface{ Shutdown(ctx) error }` / `interface{ Close() error }` rather than the
+real `tracer.Tracer`/`*sqlkit.DB`/`redis.Client` types), `lifecycle/options.go` (`WithReadiness`, `WithSignals`,
+`WithLogger`, `WithCloser`, `WithShutdownFunc`), `lifecycle/lifecycle.go` (`Run(ctx, srv, cfg, opts...) error`,
+`ErrForcedShutdown` sentinel, unexported `runner`/`namedCloser`/`(*runner).run` core decoupled from the real OS
+signal channel, `waitOrForced`, `runPhase`, `(*runner).forceExit`/`runClosers` + logging helpers),
+`lifecycle/lifecycle__test.go` (table-driven + scenario tests: happy path, context-triggered shutdown, hook-error
+joining, forced exit during the drain delay and during the closer phase via synchronized fake signal channels,
+closer adapters, `Config.Validate`), `lifecycle/README.md`. Mock generated into
+`mocks/lifecycle/mock_lifecycle.go` (`./lib/...` wildcard in `MOCK_PKGS` picked it up with no Makefile change).
 
-**Files:** `lifecycle/config.go` (`Config{timeout}` mapstructure-tagged + `DefaultConfig()` — 30s),
-`lifecycle/lifecycle.go` (`Run(ctx, *http.Server, cfg Config, opts ...Option) error`; options are non-serializable:
-`WithReadiness(*atomic.Bool)`, `WithSignals(...os.Signal)`, `WithLogger`, `WithCloser`, `WithShutdownFunc`),
-`lifecycle/closer.go` (`Closer{Close(ctx)error}`, adapters `CloserFromTracer/CloserFromDB/CloserFromRedis`),
-`lifecycle/lifecycle__test.go`, `lifecycle/README.md`. (`Config` only holds `timeout`; readiness flag, signal set,
-and closers are live objects/funcs, so they stay options.)
+**Deviations from the original spec:** (1) `CloserFromTracer`/`CloserFromDB`/`CloserFromRedis` take a small
+inline structural interface instead of the real `tracer.Tracer`/`*sqlkit.DB`/`redis.Client` types, so `lifecycle`
+imports none of its siblings — keeping it genuinely dependency-free per the "keep packages independent" rule,
+at the cost of not catching a typed-nil concrete pointer passed through the adapter (documented in the README's
+Limitations). (2) `Run`'s core logic lives in an unexported `(*runner).run(ctx, srv, cfg, sigCh)` that takes the
+signal channel as a parameter, with the exported `Run` just wiring up `signal.Notify` — this is what makes the
+forced-exit-on-second-signal behavior testable without sending real OS signals (push fake `os.Signal` values into
+a test-owned channel instead), the same testability motivation that added `circuitbreaker.WithClock`. (3) Added a
+`srv == nil` guard returning `errorz.BadRequest()` (not in the original file list) since `srv` is an unconditionally
+required positional dependency, matching `ratelimit.FromConfig`'s precedent for required-dep validation.
 
-Behavior: trap SIGINT/SIGTERM → flip readiness (so `httpkit.Readiness` returns 503, LBs stop routing) →
-`srv.Shutdown(ctx)` drains → run closers LIFO (tracer flush → redis → db) under deadline → `errors.Join` results.
+Ordered, deadline-bounded shutdown across HTTP + resources (DB, Redis, tracer flush), with an LB-safe drain
+delay, per-phase budgets, and a forced-exit escape hatch. See "Production-readiness notes" below for the
+reasoning behind each deviation from a naive "trap signal → Shutdown → close everything" implementation.
+
+**Files:** `lifecycle/config.go` (`Config{drain_delay, shutdown_timeout, closer_timeout}` mapstructure-tagged +
+`DefaultConfig()` — 5s / 15s / 15s), `lifecycle/lifecycle.go` (`Run(ctx, *http.Server, cfg Config, opts ...Option)
+error`; options are non-serializable: `WithReadiness(*atomic.Bool)`, `WithSignals(...os.Signal)`, `WithLogger`,
+`WithCloser(name string, c Closer)`, `WithShutdownFunc`), `lifecycle/closer.go` (`Closer{Close(ctx)error}`,
+adapters `CloserFromTracer/CloserFromDB/CloserFromRedis`), `lifecycle/lifecycle__test.go`, `lifecycle/README.md`.
+(`Config` only holds the three durations; readiness flag, signal set, and closers are live objects/funcs, so they
+stay options.)
+
+**Behavior:**
+
+1. `signal.Notify` on a buffered channel (`WithSignals`, default `SIGINT, SIGTERM`).
+2. On the **first** signal: flip readiness (so `httpkit.Readiness` starts returning 503) → sleep `DrainDelay` →
+   `srv.Shutdown(ctx)` bounded by `ShutdownTimeout` → run closers **in registration order** (see ordering note
+   below), each bounded by a slice of `CloserTimeout`, logging each closer's name/duration/error via the optional
+   logger → `errors.Join` the shutdown error and every closer error and return.
+3. On a **second** signal received at any point after the first (drain delay, `srv.Shutdown`, or closer loop):
+   abandon the remaining budget immediately, log at warn level, and return/exit without waiting out the
+   configured timeouts. This is the operator's "stop being polite" escape hatch when a dependency hangs.
+
 **Deps:** none (stdlib).
+
+### Production-readiness notes (why the spec looks like this)
+
+- **Drain delay (`DrainDelay`, default 5s) between flipping readiness and calling `srv.Shutdown`.** Flipping
+  readiness and shutting down back-to-back races the load balancer / k8s endpoint controller: they need a beat to
+  observe the 503 and stop routing before the listener actually closes, or a slice of in-flight requests get
+  connection-refused instead of served. The delay is a plain `time.Sleep`, interruptible by a second signal (see
+  above) so a manual double Ctrl-C still exits fast in local dev.
+- **Closer ordering is registration order (not LIFO), and callers are expected to register least-recoverable
+  first.** The worked example registers `WithCloser("tracer", ...)`, `WithCloser("redis", ...)`,
+  `WithCloser("db", ...)` — the intent is tracer flush first (captures spans for requests that just finished
+  draining, while they're still fresh), then redis, then db last (the most foundational dependency, kept alive
+  longest in case another closer's `Close` needs to write a final record). Document this explicitly in
+  `lifecycle/README.md` so consumers don't assume LIFO and register in the wrong order.
+- **Split timeouts (`ShutdownTimeout`, `CloserTimeout`) instead of one shared `timeout`.** A single budget lets a
+  slow HTTP drain (lots of in-flight requests) starve the closer phase down to near-zero, silently skipping the
+  DB/Redis/tracer cleanup under load — exactly when it matters most. Splitting gives closers a guaranteed floor
+  independent of how long the drain took. `CloserTimeout` is the budget for the *whole* closer phase (closers run
+  sequentially in registration order, not concurrently, so ordering guarantees hold); log per-closer duration so
+  an incident review can see which one ate the budget.
+- **Forced exit on a second signal.** Without it, an operator who sends SIGTERM during an incident and then gets
+  impatient (or a dependency's `Close` hangs) has no way to escalate short of `SIGKILL`, which skips logging/flush
+  entirely. Trapping the second signal lets `lifecycle` log what it was doing when it bailed.
+
+Total worst-case wall time with defaults: `DrainDelay(5s) + ShutdownTimeout(15s) + CloserTimeout(15s)` ≈ 35s —
+tune per-service; a service with a slow LB propagation or a slow DB pool drain should raise the relevant knob
+independently rather than one global number.
 
 ---
 
