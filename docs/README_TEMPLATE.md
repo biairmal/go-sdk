@@ -30,7 +30,7 @@ A package may add more sections — place them as follows so the required tail (
 - **Code fences**: ` ```bash ` for shell, ` ```go ` for Go, ` ```yaml ` for config — always tag the language.
 - **Features / Limitations bullets**: lead with a **bold term**, then a colon and the explanation.
 - **Links**: relative paths to sibling packages (`../sqlkit/README.md`); use `–` (en dash) before the short note.
-- **Install line**: always `go get github.com/biairmal/go-sdk/<package>`.
+- **Install line**: always `go get github.com/biairmal/go-sdk/lib/<package>`.
 
 ## Template
 
@@ -55,7 +55,7 @@ Copy the skeleton below into a new package's `README.md` and fill it in. Delete 
 ### Installation
 
 ```bash
-go get github.com/biairmal/go-sdk/<package>
+go get github.com/biairmal/go-sdk/lib/<package>
 ```
 
 ### Basic usage
@@ -63,7 +63,7 @@ go get github.com/biairmal/go-sdk/<package>
 ```go
 package main
 
-import "github.com/biairmal/go-sdk/<package>"
+import "github.com/biairmal/go-sdk/lib/<package>"
 
 func main() {
     // minimal, runnable example

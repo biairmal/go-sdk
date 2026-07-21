@@ -10,8 +10,8 @@
 
 include $(SCRIPTS_DIR)/vars.mk
 
-# Packages that carry //go:generate mockgen directives.
-MOCK_PKGS := ./logger/... ./redis/... ./repository/... ./validator/... ./tracer/... ./auth/... ./metrics/... ./ratelimit/... ./circuitbreaker/...
+# All SDK source packages; go generate is a no-op for files without a //go:generate directive.
+MOCK_PKGS := ./lib/...
 
 mocks: ## Regenerate interface mocks into the ./mocks module (go.uber.org/mock)
 	$(ECHO_EMPTY)

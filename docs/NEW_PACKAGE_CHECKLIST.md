@@ -5,12 +5,12 @@ Follow these steps in order when adding a sub-package to the SDK. The rules refe
 ## 1. Decide it belongs here
 
 - Is it a **cross-cutting concern** reusable by multiple consumers? If it's app-specific, it belongs in the consumer, not the SDK.
-- Can it stand alone without importing sibling SDK packages? Keep it [independent](ARCHITECTURE.md#modular-no-entry-point). If it needs shared types, prefer a small leaf package (e.g. `common/dto`).
+- Can it stand alone without importing sibling SDK packages? Keep it [independent](ARCHITECTURE.md#modular-no-entry-point). If it needs shared types, prefer a small leaf package (e.g. `lib/common/dto`).
 
 ## 2. Create the package
 
 ```
-<package>/
+lib/<package>/
   doc.go            # package-level doc comment (or top of the main file)
   <package>.go      # implementation
   <package>_test.go # table-driven tests
@@ -48,7 +48,7 @@ Consumers unit-test against SDK interfaces. For each new **exported interface** 
   so mock type names never collide across packages and importing one mock doesn't pull in another's deps:
 
   ```go
-  //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=../mocks/<pkg>/mock_<pkg>.go -package=mock<pkg> github.com/biairmal/go-sdk/<pkg> Iface1,Iface2
+  //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=../../mocks/<pkg>/mock_<pkg>.go -package=mock<pkg> github.com/biairmal/go-sdk/lib/<pkg> Iface1,Iface2
   ```
 
 - Run **`make mocks`** from the repo root (regenerates via `go generate` + tidies the `mocks` module). Commit the

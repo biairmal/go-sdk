@@ -8,18 +8,18 @@ Shared Go SDK for the Guest Management ecosystem. Provides configuration loading
 
 ## Overview
 
-The SDK is a collection of libraries that handle cross-cutting concerns: config (Viper + .env + substitution), errors with codes and metadata ([errorz](errorz/README.md)), HTTP middleware and response envelope ([httpkit](httpkit/README.md)), structured logging ([logger](logger/README.md)), generic repository and SQL helpers ([repository](repository/README.md), [sqlkit](sqlkit/README.md)). Use the sub-packages you need; there is no requirement to use all of them.
+The SDK is a collection of libraries that handle cross-cutting concerns: config (Viper + .env + substitution), errors with codes and metadata ([errorz](lib/errorz/README.md)), HTTP middleware and response envelope ([httpkit](lib/httpkit/README.md)), structured logging ([logger](lib/logger/README.md)), generic repository and SQL helpers ([repository](lib/repository/README.md), [sqlkit](lib/sqlkit/README.md)). Use the sub-packages you need; there is no requirement to use all of them.
 
 ---
 
 ## Features
 
-- **Configuration** — Load JSON/YAML into structs with Viper; optional `.env` loading and `${VAR}` substitution in config files. See [config/README.md](config/README.md).
-- **Structured errors** — Error type with codes, source system, metadata, and sentinels; maps to HTTP status in httpkit. See [errorz/README.md](errorz/README.md).
-- **HTTP utilities** — Handler adapter (`func(*http.Request) (any, error)` → `http.Handler`), Recover/RequestID/Logging middleware, response envelope, health and readiness handlers, thin client. See [httpkit/README.md](httpkit/README.md).
-- **Logging** — Unified logger interface; Zerolog backend and no-op for tests; levels, structured fields, context extraction, file rotation. See [logger/README.md](logger/README.md).
-- **Repository** — Generic repository interfaces and SQL implementation; filtering, pagination, sorting; optional caching; mock for tests. See [repository/README.md](repository/README.md).
-- **SQL connection** — Leader/follower support, health checks, retry, transaction injection; driver-agnostic over `database/sql`. See [sqlkit/README.md](sqlkit/README.md).
+- **Configuration** — Load JSON/YAML into structs with Viper; optional `.env` loading and `${VAR}` substitution in config files. See [config/README.md](lib/config/README.md).
+- **Structured errors** — Error type with codes, source system, metadata, and sentinels; maps to HTTP status in httpkit. See [errorz/README.md](lib/errorz/README.md).
+- **HTTP utilities** — Handler adapter (`func(*http.Request) (any, error)` → `http.Handler`), Recover/RequestID/Logging middleware, response envelope, health and readiness handlers, thin client. See [httpkit/README.md](lib/httpkit/README.md).
+- **Logging** — Unified logger interface; Zerolog backend and no-op for tests; levels, structured fields, context extraction, file rotation. See [logger/README.md](lib/logger/README.md).
+- **Repository** — Generic repository interfaces and SQL implementation; filtering, pagination, sorting; optional caching; mock for tests. See [repository/README.md](lib/repository/README.md).
+- **SQL connection** — Leader/follower support, health checks, retry, transaction injection; driver-agnostic over `database/sql`. See [sqlkit/README.md](lib/sqlkit/README.md).
 
 ---
 
@@ -82,9 +82,9 @@ Run `make help` to see all targets and descriptions (formatter, linter, test, se
 
 | Document | Description |
 | -------- | ----------- |
-| [config/README.md](config/README.md) | Config loader: Viper, .env, substitution, usage. |
-| [errorz/README.md](errorz/README.md) | Structured errors, codes, sentinels, limitations. |
-| [httpkit/README.md](httpkit/README.md) | Handler, middleware, response envelope, health/readiness, client. |
-| [logger/README.md](logger/README.md) | Logger interface, Zerolog backend, no-op, rotation. |
-| [repository/README.md](repository/README.md) | Repository interfaces, SQL implementation, mock, options. |
-| [sqlkit/README.md](sqlkit/README.md) | DB connection, leader/follower, health, transactions. |
+| [config/README.md](lib/config/README.md) | Config loader: Viper, .env, substitution, usage. |
+| [errorz/README.md](lib/errorz/README.md) | Structured errors, codes, sentinels, limitations. |
+| [httpkit/README.md](lib/httpkit/README.md) | Handler, middleware, response envelope, health/readiness, client. |
+| [logger/README.md](lib/logger/README.md) | Logger interface, Zerolog backend, no-op, rotation. |
+| [repository/README.md](lib/repository/README.md) | Repository interfaces, SQL implementation, mock, options. |
+| [sqlkit/README.md](lib/sqlkit/README.md) | DB connection, leader/follower, health, transactions. |

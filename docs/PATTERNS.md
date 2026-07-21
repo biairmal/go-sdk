@@ -6,7 +6,7 @@ Copy-paste templates for the conventions required by [../AGENTS.md](../AGENTS.md
 
 Constructors are named `NewX`, take `context`-free configuration, and accept variadic `WithX` options that mutate the receiver. Options must be nil/zero-safe.
 
-Modelled on [`repository/sql/sql_repository.go`](../repository/sql/sql_repository.go):
+Modelled on [`repository/sql/sql_repository.go`](../lib/repository/sql/sql_repository.go):
 
 ```go
 type SQLRepositoryOption[TEntity any, TID comparable] func(*SQLRepository[TEntity, TID])
@@ -38,7 +38,7 @@ func WithDialect[TEntity any, TID comparable](d Dialect) SQLRepositoryOption[TEn
 
 Sentinels are package-level values prefixed `Err…`; constructors return a fresh `*Error` that wraps the sentinel so callers can use `errors.Is`. `errorz` is the [ecosystem-wide error type](ARCHITECTURE.md#errors-errorz-as-the-ecosystem-wide-error-type) — use it across all layers and SDK packages, not just the HTTP edge.
 
-Modelled on [`errorz/error.go`](../errorz/error.go):
+Modelled on [`errorz/error.go`](../lib/errorz/error.go):
 
 ```go
 // Sentinel — used for comparison, never type-asserted directly.
@@ -78,7 +78,7 @@ Use the **constructor** (`NotFound()`, `BadRequest()`, …) when you want a know
 
 ## Table-driven tests
 
-Same-package, `[]struct{ name … }` iterated with `t.Run`. Modelled on [`errorz/error__test.go`](../errorz/error__test.go):
+Same-package, `[]struct{ name … }` iterated with `t.Run`. Modelled on [`errorz/error__test.go`](../lib/errorz/error__test.go):
 
 ```go
 func TestNew(t *testing.T) {
@@ -118,7 +118,7 @@ func TestClient_Integration(t *testing.T) {
 
 I/O functions take `context.Context` first. Transactions ride on the context so callers can compose them without changing signatures.
 
-Modelled on [`sqlkit/transaction.go`](../sqlkit/transaction.go) and [`sqlkit/db.go`](../sqlkit/db.go):
+Modelled on [`sqlkit/transaction.go`](../lib/sqlkit/transaction.go) and [`sqlkit/db.go`](../lib/sqlkit/db.go):
 
 ```go
 // Inject a transaction for the duration of a request/unit of work.
@@ -134,7 +134,7 @@ return db.Leader().ExecContext(ctx, query, args...)   // writes → Leader
 
 ## Optional, nil-safe logger
 
-Accept `logger.Logger` only when there's real internal state to trace, and guard every call. Modelled on [`repository/sql/sql_repository.go`](../repository/sql/sql_repository.go):
+Accept `logger.Logger` only when there's real internal state to trace, and guard every call. Modelled on [`repository/sql/sql_repository.go`](../lib/repository/sql/sql_repository.go):
 
 ```go
 func (r *SQLRepository[TEntity, TID]) logQuery(ctx context.Context, query string, args []any) {

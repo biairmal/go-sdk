@@ -6,7 +6,7 @@ Reference for *why* the SDK is shaped the way it is. The enforceable rules live 
 
 The SDK is a set of **independent sub-packages**. There is no root package to import and no initialization order. A consumer takes `errorz` without pulling in `sqlkit`, or `redis` without `httpkit`. This keeps the dependency surface small for each consumer and lets packages evolve independently.
 
-**Implication for authors:** avoid cross-package imports between siblings unless there is a clear reason. New shared types usually belong in a small leaf package (e.g. `common/dto`) rather than creating a web of interdependencies.
+**Implication for authors:** avoid cross-package imports between siblings unless there is a clear reason. New shared types usually belong in a small leaf package (e.g. `lib/common/dto`) rather than creating a web of interdependencies.
 
 ## Layering & dependency direction
 
@@ -34,7 +34,7 @@ Guidance:
 
 - Return an `*errorz.Error` with an appropriate **code**, and **wrap the underlying cause** so the chain is preserved (`errors.Is` / `errors.As` keep working). Don't discard the original error.
 - Compare sentinels with `errors.Is(err, errorz.ErrNotFound)` — sentinels travel; type assertions don't.
-- Because the SDK packages now depend on `errorz`, it is a **foundational leaf package** (alongside `logger` and `common/dto`) that the modular [package-independence](#modular-no-entry-point) rule explicitly permits as a shared dependency.
+- Because the SDK packages now depend on `errorz`, it is a **foundational leaf package** (alongside `logger` and `common/dto`, all under `lib/`) that the modular [package-independence](#modular-no-entry-point) rule explicitly permits as a shared dependency.
 
 See the canonical snippets in [PATTERNS.md](PATTERNS.md#sentinel-errors-errorz).
 

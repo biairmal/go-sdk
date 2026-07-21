@@ -67,9 +67,9 @@ func TestCreateUser(t *testing.T) {
 
 ## Regenerating
 
-The `//go:generate` directives live next to each interface in the main module (`logger/logger.go`,
-`redis/client.go`, `repository/repository.go`). Regenerate all mocks and re-tidy this module in one step from the
-repo root:
+The `//go:generate` directives live next to each interface in the main module (`lib/logger/logger.go`,
+`lib/redis/client.go`, `lib/repository/repository.go`). Regenerate all mocks and re-tidy this module in one step from
+the repo root:
 
 ```bash
 make mocks

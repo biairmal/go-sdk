@@ -16,24 +16,24 @@ A shared Go SDK (module `github.com/biairmal/go-sdk`, Go 1.25.1) — a collectio
 
 | Package | Role |
 |---|---|
-| `config` | Viper-based loader; `.env` loading via godotenv; `${VAR}` substitution in config files |
-| `ctxkit` | Canonical typed context keys + accessors (request/correlation/trace/user IDs); `LoggerExtractor()` for automatic log fields |
-| `errorz` | `*Error` type with code/message/source/meta; sentinel errors (`ErrNotFound`, …); constructors (`NotFound()`, `BadRequest()`, …) that wrap sentinels for `errors.Is` |
-| `httpkit` | Handler adapter, middleware chain, response envelope, health/readiness endpoints, thin HTTP client |
-| `logger` | `Logger` interface; Zerolog backend; no-op for tests |
-| `sqlkit` | `*DB` wrapper over `database/sql`; leader/follower with round-robin and health fallback; connection pool config; transaction injection |
-| `redis` | `redis.Client` interface wrapping go-redis/v9; pipeline support; `Eval` for atomic Lua scripts |
-| `repository` | Generic interfaces: `Repository[T,ID]`, `ReadRepository`, `WriteRepository`, `TransactionalRepository` |
-| `repository/sql` | `SQLRepository[T,ID]` — reflection-based CRUD using `db` struct tags; multi-dialect placeholders; `WithDialect`, `WithSelectColumns`, `WithIDColumn` options |
-| `repository/cache` | `CachedRepository[T,ID]` decorator (WIP); wraps any `Repository`; write-through / write-around / write-behind strategies |
-| `serializer` | Thin wrappers around `encoding/json` (`ToJSON`, `ParseJSON`) |
-| `validator` | `Validator` interface wrapping go-playground/validator/v10; struct-tag + single-value validation; `errorz` field errors |
-| `tracer` | `Tracer`/`Span` interfaces; OTel OTLP/gRPC backend + `NoOp`; W3C propagation; server middleware (`httpkit/middleware.Tracing`) |
-| `auth` | `Validator`/`Claims`/`Issuer`; remote (mappable) + HS256/RS256/JWKS; config-driven route `Policy`; TTL cache; token issuing; server middleware (`httpkit/middleware.Auth`) |
-| `metrics` | `Recorder` interface; Prometheus backend + `NoOp`; dynamic metric registration; HTTP request count/duration/in-flight middleware (`httpkit/middleware.Metrics`) |
-| `ratelimit` | `Limiter` interface; in-memory token bucket (`golang.org/x/time/rate`) + Redis sliding-window (Lua) backends; 429 middleware with headers (`httpkit/middleware.RateLimit`) |
-| `circuitbreaker` | `Breaker` interface; own closed/open/half-open state machine (no third-party dep); `Do[T]` generic helper; `ErrOpen`→503 |
-| `common/dto` | `PageRequest` / `PageResponse` DTOs |
+| `lib/config` | Viper-based loader; `.env` loading via godotenv; `${VAR}` substitution in config files |
+| `lib/ctxkit` | Canonical typed context keys + accessors (request/correlation/trace/user IDs); `LoggerExtractor()` for automatic log fields |
+| `lib/errorz` | `*Error` type with code/message/source/meta; sentinel errors (`ErrNotFound`, …); constructors (`NotFound()`, `BadRequest()`, …) that wrap sentinels for `errors.Is` |
+| `lib/httpkit` | Handler adapter, middleware chain, response envelope, health/readiness endpoints, thin HTTP client |
+| `lib/logger` | `Logger` interface; Zerolog backend; no-op for tests |
+| `lib/sqlkit` | `*DB` wrapper over `database/sql`; leader/follower with round-robin and health fallback; connection pool config; transaction injection |
+| `lib/redis` | `redis.Client` interface wrapping go-redis/v9; pipeline support; `Eval` for atomic Lua scripts |
+| `lib/repository` | Generic interfaces: `Repository[T,ID]`, `ReadRepository`, `WriteRepository`, `TransactionalRepository` |
+| `lib/repository/sql` | `SQLRepository[T,ID]` — reflection-based CRUD using `db` struct tags; multi-dialect placeholders; `WithDialect`, `WithSelectColumns`, `WithIDColumn` options |
+| `lib/repository/cache` | `CachedRepository[T,ID]` decorator (WIP); wraps any `Repository`; write-through / write-around / write-behind strategies |
+| `lib/serializer` | Thin wrappers around `encoding/json` (`ToJSON`, `ParseJSON`) |
+| `lib/validator` | `Validator` interface wrapping go-playground/validator/v10; struct-tag + single-value validation; `errorz` field errors |
+| `lib/tracer` | `Tracer`/`Span` interfaces; OTel OTLP/gRPC backend + `NoOp`; W3C propagation; server middleware (`httpkit/middleware.Tracing`) |
+| `lib/auth` | `Validator`/`Claims`/`Issuer`; remote (mappable) + HS256/RS256/JWKS; config-driven route `Policy`; TTL cache; token issuing; server middleware (`httpkit/middleware.Auth`) |
+| `lib/metrics` | `Recorder` interface; Prometheus backend + `NoOp`; dynamic metric registration; HTTP request count/duration/in-flight middleware (`httpkit/middleware.Metrics`) |
+| `lib/ratelimit` | `Limiter` interface; in-memory token bucket (`golang.org/x/time/rate`) + Redis sliding-window (Lua) backends; 429 middleware with headers (`httpkit/middleware.RateLimit`) |
+| `lib/circuitbreaker` | `Breaker` interface; own closed/open/half-open state machine (no third-party dep); `Do[T]` generic helper; `ErrOpen`→503 |
+| `lib/common/dto` | `PageRequest` / `PageResponse` DTOs |
 
 > When you add a package, **add a row here** (see [Authoring rules](#authoring-rules)).
 
@@ -79,7 +79,7 @@ These are **MUST**-level unless stated otherwise. They are derived from existing
 
 ### Package boundaries & layering
 
-- **Keep packages independent.** Don't add imports between sibling SDK packages without a clear reason; a consumer should be able to import one package without dragging in unrelated ones. `errorz`, `logger`, and `common/dto` are the **foundational leaf packages** that other packages and apps may freely depend on.
+- **Keep packages independent.** Don't add imports between sibling SDK packages without a clear reason; a consumer should be able to import one package without dragging in unrelated ones. `errorz`, `logger`, and `common/dto` (all under `lib/`) are the **foundational leaf packages** that other packages and apps may freely depend on.
 - **`errorz` is the ecosystem-wide structured error type.** Use it across all layers and SDK packages (`sqlkit`, `redis`, `repository`, `config`, …) and in app usecase / infrastructure / domain code. Its codes are a **transport-agnostic taxonomy**; `httpkit` maps them to HTTP status at the edge, but they are **not** HTTP-only and may map to gRPC, CLI exit codes, etc. Return an `*errorz.Error` with an appropriate code and **wrap the underlying error** to preserve the chain.
 - Check sentinel errors with `errors.Is(err, errorz.ErrNotFound)` — **never** by type-asserting the sentinel directly.
 - **Public APIs use stdlib types** (`http.Handler`, `*sql.DB`, `context.Context`). Don't leak third-party types into exported signatures unless they are the package's whole purpose (e.g. `redis` wrapping go-redis).
@@ -95,11 +95,11 @@ These are **MUST**-level unless stated otherwise. They are derived from existing
 - Constructors are named **`NewX`** (e.g. `NewSQLRepository`, `NewDB`).
 - **Configuration values go in a `Config` struct, not in `WithX` options** (see [Configuration](#configuration) below). Functional `WithX` options are reserved for **optional dependencies and non-serializable behavior** (loggers, alternate `http.Client`, callbacks, custom funcs). A `WithX` returns an option that mutates the receiver, applied via `for _, opt := range opts { opt(r) }`; options must be nil/zero-safe.
 - Prefer **interface before implementation** — define the contract (`Repository[T,ID]`, `redis.Client`) and return it from constructors where it aids testability.
-- **Declare the `error` interface in signatures — never the concrete `*errorz.Error`.** Construct `errorz` *values* inside implementations and return them as `error`; callers extract with `errors.As`/`errors.Is` (or predicate helpers like `repository.IsNotFound`). Returning a concrete `*errorz.Error` invites the Go typed-nil bug (a nil `*errorz.Error` is a **non-nil** `error`) and couples every implementer to errorz. This is how `repository.Repository` already works ([repository/repository.go](repository/repository.go)).
+- **Declare the `error` interface in signatures — never the concrete `*errorz.Error`.** Construct `errorz` *values* inside implementations and return them as `error`; callers extract with `errors.As`/`errors.Is` (or predicate helpers like `repository.IsNotFound`). Returning a concrete `*errorz.Error` invites the Go typed-nil bug (a nil `*errorz.Error` is a **non-nil** `error`) and couples every implementer to errorz. This is how `repository.Repository` already works ([lib/repository/repository.go](lib/repository/repository.go)).
 
 ### Configuration
 
-Configuration is **struct-first, YAML-first** so a consuming microservice can embed an SDK package's `Config` into its own app config and populate everything from a single file via [`config.Load`](config/config.go) (Viper + mapstructure). This is the established shape for `sqlkit.New(ctx, *Config)`, `redis.NewClient(*Config)`, and `logger.NewZerolog(*Options)`.
+Configuration is **struct-first, YAML-first** so a consuming microservice can embed an SDK package's `Config` into its own app config and populate everything from a single file via [`config.Load`](lib/config/config.go) (Viper + mapstructure). This is the established shape for `sqlkit.New(ctx, *Config)`, `redis.NewClient(*Config)`, and `logger.NewZerolog(*Options)`.
 
 - **Expose an exported `Config` struct.** Every serializable field carries a **`mapstructure:"snake_case"`** tag; nested config structs are tagged too. Without tags, mapstructure won't split camelCase (`MaxOpenConns` would only bind to YAML `maxopenconns`, never `max_open_conns`).
 - **Non-serializable fields get `mapstructure:"-"`** (funcs, interfaces — e.g. `logger.Options.ContextExtractor`). These are set in code, not YAML.
