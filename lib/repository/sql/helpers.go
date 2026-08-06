@@ -129,7 +129,14 @@ func BuildOrderByClause(sorts []repository.Sort) string {
 }
 
 // BuildPaginationClause returns the pagination SQL fragment and args [limit, offset] using dialect.
-func BuildPaginationClause(dialect Dialect, pagination repository.Pagination) (clause string, args []any) {
+// argOffset is the number of positional args already placed earlier in the query (e.g. len(whereArgs))
+// so the LIMIT/OFFSET placeholders continue the same numbering instead of restarting at 1 — restarting
+// would make a numbered-placeholder dialect (Postgres $N, Oracle :N) bind LIMIT/OFFSET to the WHERE
+// clause's argument values instead of their own, since the driver matches by placeholder number, not
+// by clause.
+func BuildPaginationClause(
+	dialect Dialect, pagination repository.Pagination, argOffset int,
+) (clause string, args []any) {
 	if dialect == nil {
 		dialect = DefaultDialect
 	}
@@ -142,7 +149,7 @@ func BuildPaginationClause(dialect Dialect, pagination repository.Pagination) (c
 	if pagination.Offset < 0 {
 		pagination.Offset = 0
 	}
-	clause = dialect.PaginationClause(1, 2)
+	clause = dialect.PaginationClause(argOffset+1, argOffset+2)
 	args = []any{pagination.Limit, pagination.Offset}
 	return clause, args
 }

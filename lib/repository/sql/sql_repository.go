@@ -282,7 +282,7 @@ func (r *SQLRepository[TEntity, TID]) buildListQuery(opts *repository.ListOption
 	if orderByClause != "" {
 		query += " " + orderByClause
 	}
-	paginationClause, paginationArgs := BuildPaginationClause(d, opts.Pagination)
+	paginationClause, paginationArgs := BuildPaginationClause(d, opts.Pagination, len(args))
 	if paginationClause != "" {
 		query += " " + paginationClause
 		args = append(args, paginationArgs...)
