@@ -35,6 +35,7 @@ A shared Go SDK (module `github.com/biairmal/go-sdk`, Go 1.25.1) — a collectio
 | `lib/circuitbreaker` | `Breaker` interface; own closed/open/half-open state machine (no third-party dep); `Do[T]` generic helper; `ErrOpen`→503 |
 | `lib/lifecycle` | `Run()` graceful shutdown: signal/context trap, readiness flip + drain delay, ordered `Closer` cleanup, split timeouts, forced exit on a second signal |
 | `lib/common/dto` | `PageRequest` / `PageResponse` DTOs |
+| `lib/crypto` | `Encryptor`: field-level AES-256-GCM `Encrypt`/`Decrypt` + deterministic HMAC-SHA256 `BlindIndex` for exact-match lookup on encrypted columns; no swappable backend, no mock |
 
 > When you add a package, **add a row here** (see [Authoring rules](#authoring-rules)).
 

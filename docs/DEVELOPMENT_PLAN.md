@@ -18,6 +18,7 @@ Phases are listed in **build order** — each builds on the ones above it.
 | 6 | `ratelimit` | Rate limiting (in-memory + Redis) | ✅ **Done** |
 | 7 | `circuitbreaker` | Outbound dependency protection | ✅ **Done** |
 | 8 | `lifecycle` | Graceful shutdown | ✅ **Done** |
+| 9 | `crypto` | Field-level authenticated encryption (`Encrypt`/`Decrypt`, AES-256-GCM) + deterministic `BlindIndex` (HMAC-SHA256) for exact-match lookup on encrypted fields; separate keys for each, via `Config` | ✅ **Done** |
 
 Ordered **easiest-independent-first**. The only hard constraint: `ctxkit` (Phase 1, done) must precede
 `tracer`/`auth`/`metrics`, which write their context values through it. Everything else is independent —
@@ -495,6 +496,110 @@ stay options.)
 Total worst-case wall time with defaults: `DrainDelay(5s) + ShutdownTimeout(15s) + CloserTimeout(15s)` ≈ 35s —
 tune per-service; a service with a slow LB propagation or a slow DB pool drain should raise the relevant knob
 independently rather than one global number.
+
+---
+
+## Phase 9 — `crypto` (Field-level PII Encryption) ✅ DONE
+
+**Shipped files:** `crypto/config.go` (`Config{EncryptionKey,BlindIndexKey}` + `DefaultConfig()` — deliberately
+invalid, since both keys are required secrets — + `Validate()`, enforcing key separation), `crypto/crypto.go`
+(`Encryptor`, `New(cfg) (*Encryptor, error)`, `Encrypt`/`Decrypt`/`BlindIndex` methods, `ErrDecryptionFailed`
+sentinel wrapping `errorz.ErrInternal`), `crypto/config__test.go`, `crypto/crypto__test.go` (round-trip, nonce
+non-determinism, wrong-key rejection, tamper detection, blind-index determinism/collision behavior),
+`crypto/README.md`. No mock — no exported interface (see deviation below).
+
+Requested by `guest-management-be` B8 (`guests` PII encryption on `email`/`phone`) — see
+[guest-management-be B8](../../guest-management-be/docs/DEVELOPMENT_PLAN.md), which sketched a rough shape
+during its own design pass and explicitly deferred the SDK package itself to here.
+
+**Deviation from the B8 sketch:** B8 sketched free functions taking a raw `key []byte` on every call
+(`Encrypt(key, plaintext []byte) (string, error)`). Building it, this SDK's `New(cfg, ...) X` constructor
+convention fits better: `New(cfg Config) (*Encryptor, error)` validates and decodes both keys **once**, and
+the returned `*Encryptor`'s methods take only the plaintext/ciphertext/value — no way to accidentally pass the
+blind-index key where the encryption key belongs, or vice versa. `guest-management-be`'s `cryptoPIIEncryptor`
+adapter just holds one `*Encryptor` instead of two `[]byte` keys.
+
+One implementation only — **AES-256-GCM** for `Encrypt`/`Decrypt`, **HMAC-SHA256** for `BlindIndex` — no
+swappable backend. Unlike `tracer`/`auth`/`metrics`/`ratelimit`/`circuitbreaker`, this package skips the
+interface + `NoOp` + mock pattern: there's nothing to swap, and a "no-op encryptor" is a footgun, not a fake
+worth shipping. `*Encryptor` is a concrete type; a consumer that needs a test double fakes it at its own
+interface boundary, same as `guest-management-be` already does with `PIIEncryptor`.
+
+**Files:**
+
+| File | Contents |
+|---|---|
+| `crypto/config.go` | `Config{EncryptionKey, BlindIndexKey string}` (mapstructure, base64) + `DefaultConfig()` + `Validate()` |
+| `crypto/crypto.go` | `Encryptor` type, `New(cfg Config) (*Encryptor, error)`, `Encrypt`/`Decrypt`/`BlindIndex` methods, `ErrDecryptionFailed` sentinel |
+| `crypto/crypto__test.go` | table-driven: round-trip, tamper detection (flipped byte fails auth), wrong-key rejection, blind-index determinism + collision-resistance, nonce uniqueness across calls |
+| `crypto/README.md` | usage + key-generation snippet + security notes (never log plaintext/keys, key separation) |
+
+### Config & interface
+
+```go
+// Config holds the key material for field encryption and blind indexing. Both fields are
+// standard-base64-encoded; source real values from a secret store, never commit them.
+type Config struct {
+    // EncryptionKey decodes to exactly 32 bytes — the AES-256-GCM key.
+    EncryptionKey string `mapstructure:"encryption_key"`
+    // BlindIndexKey decodes to at least 16 bytes — the HMAC-SHA256 key. Must differ from
+    // EncryptionKey: an encryption key and a MAC key serve different purposes and must not be reused.
+    BlindIndexKey string `mapstructure:"blind_index_key"`
+}
+
+func DefaultConfig() Config { return Config{} } // no safe default secret; both fields are required
+func (c Config) Validate() error // decodes both, checks lengths, and that they differ
+
+// Encryptor performs authenticated field encryption and deterministic blind indexing over one
+// validated key pair.
+type Encryptor struct { /* unexported decoded keys */ }
+
+// New validates cfg (calling Validate()) and builds an Encryptor.
+func New(cfg Config) (*Encryptor, error)
+
+// Encrypt returns a base64-encoded, randomly-nonced AES-256-GCM ciphertext of plaintext.
+// Encrypting the same plaintext twice yields different output — semantic security by design.
+func (e *Encryptor) Encrypt(plaintext []byte) (string, error)
+
+// Decrypt reverses Encrypt. Returns ErrDecryptionFailed (wraps errorz.Internal) on a bad key,
+// truncated/corrupted ciphertext, or a failed auth tag (tamper detection).
+func (e *Encryptor) Decrypt(ciphertext string) ([]byte, error)
+
+// BlindIndex returns a deterministic, hex-encoded HMAC-SHA256 of value, for exact-match lookups
+// against an encrypted column. Same value + same key always produce the same output. Callers
+// normalize value (case-folding, trimming, digits-only phone, ...) before calling — that's the
+// consuming feature's business rule, not this package's concern.
+func (e *Encryptor) BlindIndex(value string) string
+```
+
+### Implementation notes
+
+- **Ciphertext format:** `base64( nonce(12 bytes) || AES-GCM-seal(plaintext) )`. The nonce is
+  `crypto/rand`-generated per call and travels with the ciphertext — standard AES-GCM practice, no separate
+  nonce column needed.
+- **Key separation is enforced, not just documented:** `Validate()` rejects a `Config` where
+  `EncryptionKey == BlindIndexKey`.
+- **Errors:** `Config.Validate()` failures → `errorz.BadRequest()` (bad startup config, same precedent as
+  `ratelimit`/`tracer`). `Decrypt` failures → sentinel `ErrDecryptionFailed` wrapping `errorz.Internal()` — a
+  bad key, corrupted data, or a forged ciphertext is a data-integrity fault, not a client input problem.
+- **No logger option.** No internal state transitions worth tracing — encrypt/decrypt/hash are pure,
+  single-shot operations and failures already surface as errors (matches `serializer`'s reasoning).
+
+**Non-goals** (deferred — nothing here is required by B8's acceptance criteria):
+- **Key rotation / multi-key / key versioning.** One active key pair per `Encryptor`. Rotating means
+  re-encrypting existing rows with a new `Encryptor` at the app layer; the SDK doesn't need an "old vs new
+  key" concept until a real rotation requirement exists.
+- **KMS/HSM/secret-manager integration.** `Config` takes raw (base64) key bytes; sourcing them securely (env
+  var, Vault, AWS Secrets Manager, ...) is the consuming app's job, same as every other SDK package's secrets
+  (`auth.hs256_secret`, DB passwords).
+- **Pluggable cipher/algorithm choice.** AES-256-GCM and HMAC-SHA256 are hardcoded, not config options — a
+  config knob for an algorithm nobody's asked to change is exactly the unused flexibility this SDK's design
+  principles warn against. A different algorithm, if ever needed, is a new function, not a flag.
+- **Streaming / large-payload encryption.** Sized for short PII field values (names, emails, phone numbers),
+  not files or blobs — loads the whole plaintext/ciphertext into memory, no chunking.
+
+**Deps:** none — `crypto/aes`, `crypto/cipher`, `crypto/hmac`, `crypto/rand`, `crypto/sha256`,
+`encoding/base64`, `encoding/hex` (all stdlib).
 
 ---
 
