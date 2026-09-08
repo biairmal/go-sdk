@@ -19,6 +19,7 @@ Phases are listed in **build order** — each builds on the ones above it.
 | 7 | `circuitbreaker` | Outbound dependency protection | ✅ **Done** |
 | 8 | `lifecycle` | Graceful shutdown | ✅ **Done** |
 | 9 | `crypto` | Field-level authenticated encryption (`Encrypt`/`Decrypt`, AES-256-GCM) + deterministic `BlindIndex` (HMAC-SHA256) for exact-match lookup on encrypted fields; separate keys for each, via `Config` | ✅ **Done** |
+| 10 | `queue` | Async message publishing abstraction (`Publisher.Publish`), swappable backend + `NoOp`/logging fake | 🔲 **Designed** — not implemented |
 
 Ordered **easiest-independent-first**. The only hard constraint: `ctxkit` (Phase 1, done) must precede
 `tracer`/`auth`/`metrics`, which write their context values through it. Everything else is independent —
@@ -600,6 +601,164 @@ func (e *Encryptor) BlindIndex(value string) string
 
 **Deps:** none — `crypto/aes`, `crypto/cipher`, `crypto/hmac`, `crypto/rand`, `crypto/sha256`,
 `encoding/base64`, `encoding/hex` (all stdlib).
+
+---
+
+## Phase 10 — `queue` (Async Message Publishing Abstraction) 🔲 Designed — not implemented
+
+Requested by `guest-management-be` B8 (`guests.InvitationPublisher`) — see
+[guest-management-be B8](../../guest-management-be/docs/DEVELOPMENT_PLAN.md). `guests.SendInvitation` needs to
+publish an `InvitationMessage` for later async delivery, but no queue/messaging package exists in this SDK yet, so
+`guest-management-be` declared a local `InvitationPublisher` interface and wired only a `LoggingInvitationPublisher`
+(logs the message, sends nothing) as a stopgap. Per this SDK's design principles (interface-first, swappable
+backends, monolith-first), that publish concern belongs here, the same way `crypto` absorbed B8's PII-encryption
+sketch in Phase 9 — `guest-management-be` should depend on an interface + config, never a specific broker client.
+
+**Broker confirmed: Kafka.** Two packages, not one, mirroring how `ratelimit` depends on the existing `redis`
+package rather than embedding a Redis client inline:
+
+- **`kafka`** — connection + auth only. Wraps `github.com/segmentio/kafka-go`'s `kafka.Writer`. No messaging
+  semantics, no topic abstraction beyond passing the name through.
+- **`queue`** — the `Publisher` interface + swappable backends (`NoOp`, `Logging`, `Kafka`). This is what
+  `guest-management-be` imports; it never sees a Kafka type directly, so a future non-Kafka backend (or a test
+  double) is a config change, not a `guests` code change.
+
+**Producer only, this phase.** `guest-management-be`'s only current need is fire-and-forget publish.
+`segmentio/kafka-go` models producer (`kafka.Writer`) and consumer (`kafka.Reader`) as separate types, so a
+consumer later is a new `kafka.Reader`-backed type in this same package plus a `queue.Subscriber` interface next
+to `Publisher` — not a new package, since it reuses the same `AuthConfig`/TLS-building code this phase ships
+(`buildSASLMechanism` and the `tls.Config` builder are called once per connection either way). Building
+`Subscriber` speculatively now, with no consumer use case yet, is exactly the unused-flexibility this SDK's
+design principles warn against (see Phase 9's non-goals for the same reasoning applied to key rotation).
+
+### `kafka` — connection + auth
+
+| File | Contents |
+|---|---|
+| `kafka/config.go` | `Config{Brokers, Auth}` (mapstructure) + `DefaultConfig()` + `Validate()` |
+| `kafka/auth.go` | `AuthConfig` + `buildSASLMechanism` (mechanism → `sasl.Mechanism`) + TLS config building |
+| `kafka/client.go` | `Client`, `New(cfg Config, opts ...Option) (*Client, error)`, `Produce`, `Close` |
+| `kafka/kafka__test.go` | table-driven: config validation, mechanism selection |
+| `kafka/kafka_integration_test.go` | `//go:build integration`, `t.Skip` under `testing.Short()` — real broker round trip |
+| `kafka/README.md` | usage + auth setup per mechanism |
+
+```go
+// Config holds broker connection settings, mapstructure-tagged for config.Load.
+type Config struct {
+    Brokers []string   `mapstructure:"brokers"`
+    Auth    AuthConfig `mapstructure:"auth"`
+}
+
+// AuthConfig selects one SASL/TLS mechanism. Only one is active per Config —
+// same shape as auth.Config's mode switch, not a struct per mechanism.
+type AuthConfig struct {
+    // Mechanism: "none" | "plain" | "scram-sha256" | "scram-sha512" | "mtls".
+    Mechanism string `mapstructure:"mechanism"`
+    Username  string `mapstructure:"username"` // plain, scram-*
+    Password  string `mapstructure:"password"` // plain, scram-*
+    TLS       TLSConfig `mapstructure:"tls"`    // mtls, or alongside SASL over TLS
+}
+
+type TLSConfig struct {
+    CertFile string `mapstructure:"cert_file"`
+    KeyFile  string `mapstructure:"key_file"`
+    CAFile   string `mapstructure:"ca_file"`
+}
+
+func DefaultConfig() Config
+func (c Config) Validate() error // brokers non-empty; mechanism in the allowed set;
+                                  // plain/scram require username+password; mtls requires TLS paths
+
+// Client wraps a segmentio/kafka-go kafka.Writer over a shared *kafka.Transport
+// (the Transport carries SASL + TLS, built once from Config). Exports only
+// what queue's Kafka backend needs today; a Reader-backed consumer reuses
+// buildSASLMechanism/buildTLSConfig, not a new package, once a real consumer
+// story exists.
+type Client struct { /* unexported *kafkago.Writer */ }
+
+func New(cfg Config, opts ...Option) (*Client, error) // builds sasl.Mechanism + tls.Config from cfg.Auth once,
+                                                        // assigns both to a shared *kafka.Transport
+func (c *Client) Produce(ctx context.Context, topic string, key, value []byte, headers map[string]string) error
+func (c *Client) Close() error
+```
+
+`New` resolves `Auth.Mechanism` to a `sasl.Mechanism` in one switch (`plain.Mechanism{Username, Password}`,
+`scram.Mechanism(scram.SHA256, username, password)`/`scram.SHA512`) plus a `tls.Config` when `mtls` or when TLS
+fields are set alongside SASL — `segmentio/kafka-go`'s `sasl/plain` and `sasl/scram` packages implement the
+mechanisms, this package only wires config to them, so there is no hand-rolled SCRAM/PLAIN protocol code to
+maintain. `Produce` builds a `kafka.Message{Topic, Key, Value, Headers}` per call and passes it to
+`Writer.WriteMessages` — the per-message `Topic` field is why one `Client`/`Writer` can publish to any topic
+`queue.Publisher.Publish` names, instead of being pinned to one topic at construction.
+
+### `queue` — publishing abstraction
+
+| File | Contents |
+|---|---|
+| `queue/queue.go` | `Publisher` interface, `PublishOption`, `WithKey`/`WithHeaders`, mockgen directive |
+| `queue/config.go` | `Config{Backend, Kafka}` (mapstructure) + `DefaultConfig()` + `Validate()` + `FromConfig` |
+| `queue/noop.go` | `NewNoOp()` |
+| `queue/logging.go` | `NewLogging(log logger.Logger)` — generalizes `guest-management-be`'s stopgap |
+| `queue/kafka.go` | `NewKafka(client *kafka.Client)` |
+| `queue/queue__test.go` | table-driven: noop/logging behavior, option application |
+| `queue/README.md` | usage + backend selection |
+
+```go
+// Publisher abstracts async message publishing behind a swappable backend.
+type Publisher interface {
+    // Publish sends message to topic. Fire-and-forget from the caller's
+    // perspective; opts customize per-message behavior the active backend
+    // can honor (ignored otherwise, never an error).
+    Publish(ctx context.Context, topic string, message []byte, opts ...PublishOption) error
+}
+
+// PublishOption customizes one Publish call. Only options with a consistent
+// meaning across backends belong here — backend-only behavior (ack level,
+// compression, partition count, ...) is config on that specific backend,
+// never a PublishOption.
+type PublishOption func(*publishOptions)
+
+// WithKey sets the message's ordering key (Kafka partition key, SQS FIFO
+// message-group-id, ...). Backends without ordering ignore it.
+func WithKey(key []byte) PublishOption
+
+// WithHeaders attaches metadata headers to the message.
+func WithHeaders(headers map[string]string) PublishOption
+
+type Config struct {
+    Backend string      `mapstructure:"backend"` // "noop" | "logging" | "kafka"
+    Kafka   kafka.Config `mapstructure:"kafka"`
+}
+
+func DefaultConfig() Config
+func (c Config) Validate() error
+// FromConfig builds a Publisher from cfg.Backend; "kafka" requires an
+// already-constructed *kafka.Client (mirrors ratelimit.FromConfig(cfg, redisClient)).
+func FromConfig(cfg Config, kafkaClient *kafka.Client) (Publisher, error)
+
+func NewNoOp() Publisher
+func NewLogging(log logger.Logger) Publisher
+func NewKafka(client *kafka.Client) Publisher
+```
+
+`NewKafka`'s `Publish` extracts `key`/`headers` from `opts` and calls `client.Produce(ctx, topic, key, message,
+headers)`. `NewLogging` logs topic + message length (never the payload itself — it may carry PII) and returns nil,
+replacing `guest-management-be`'s `loggingInvitationPublisher` once wired.
+
+**Mocks:** `//go:generate mockgen` on `queue.Publisher` → `mocks/queue/mock_queue.go`, `./queue/...` added to
+`MOCK_PKGS`. `kafka.Client` is a concrete type (like `crypto.Encryptor`), not an interface — nothing to swap
+underneath it, so no mock; `queue.Publisher` is the seam consumers and tests use instead.
+
+**Non-goals** (deferred, not required by B8's acceptance criteria):
+- **Consumer/`Subscriber`.** See above — added as a `kafka.Reader`-backed type when a real consumer story exists.
+- **OAUTHBEARER / Kerberos / AWS MSK IAM.** Not built into `segmentio/kafka-go`'s `sasl` package and nothing here
+  needs them yet; adding one later is a custom `sasl.Mechanism` implementation plus one more `case` in
+  `buildSASLMechanism`, not a redesign.
+- **Delivery guarantees tuning (acks, batching, compression, retries/DLQ).** `kafka.Writer`'s defaults apply;
+  expose as `kafka.Config` fields only when a concrete reliability requirement shows up.
+- **Multi-topic routing / schema registry / Avro.** Callers pass an opaque `[]byte` and their own topic string,
+  same as every other SDK serialization boundary (`serializer`).
+
+**Deps:** `github.com/segmentio/kafka-go` (+ `kafka-go/sasl/plain`, `kafka-go/sasl/scram`).
 
 ---
 

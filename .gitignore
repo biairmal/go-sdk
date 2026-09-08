@@ -20,5 +20,9 @@ out/
 # Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
 .glide/
 
+# Throwaway certs for the integration-test Kafka mTLS listener (regenerate via
+# scripts/gen-kafka-certs.sh).
+.kafka-certs/
+
 # Dependency directories (remove the comment below to include it)
 # vendor/

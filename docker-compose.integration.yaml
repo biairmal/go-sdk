@@ -1,0 +1,129 @@
+# Live services for go-sdk's integration tests (files tagged `//go:build
+# integration`, e.g. lib/kafka/kafka_integration_test.go, lib/redis, lib/ratelimit).
+#
+# Usage:
+#   scripts/gen-kafka-certs.sh          # once, or whenever certs expire/are missing
+#   docker compose -f docker-compose.integration.yaml up -d
+#   go test -tags=integration ./...
+#   docker compose -f docker-compose.integration.yaml down -v
+#
+# Kafka exposes one broker on five listeners, one per AuthConfig.Mechanism,
+# so each mechanism's integration test dials a different port with the same
+# broker underneath:
+#   9092  none          (PLAINTEXT)
+#   9093  plain         username "testuser" / password "testpass"
+#   9094  scram-sha256  username "testuser" / password "testpass"
+#   9095  scram-sha512  username "testuser" / password "testpass"
+#   9096  mtls          client cert/key/ca from .kafka-certs/ (gen-kafka-certs.sh)
+# SCRAM credentials aren't config-file-expressible (they live in the cluster
+# metadata log), so kafka-scram-setup registers them via kafka-configs.sh
+# once the broker is healthy, then exits.
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: go-sdk-it-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: go-sdk-it-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9097
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+      # Listener names deliberately contain no underscores: the image's env-var
+      # translation maps every underscore in a KAFKA_LISTENER_NAME_* var to a
+      # "." in the property key, so "SASL_PLAIN" would come out as two listener
+      # name segments instead of one — SASLPLAIN/SASLSCRAM256/... side-step that.
+      KAFKA_LISTENERS: PLAINTEXT://:9092,SASLPLAIN://:9093,SASLSCRAM256://:9094,SASLSCRAM512://:9095,SSL://:9096,CONTROLLER://:9097
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,SASLPLAIN://localhost:9093,SASLSCRAM256://localhost:9094,SASLSCRAM512://localhost:9095,SSL://localhost:9096
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,SASLPLAIN:SASL_PLAINTEXT,SASLSCRAM256:SASL_PLAINTEXT,SASLSCRAM512:SASL_PLAINTEXT,SSL:SSL,CONTROLLER:PLAINTEXT
+
+      # SASL requires this to be set to *something* non-empty (the image's own
+      # entrypoint script hard-fails on an unset KAFKA_OPTS otherwise); nothing
+      # below reads it since every listener sets its own sasl.jaas.config.
+      KAFKA_OPTS: -Dkafka.docker.compat=true
+
+      # plain: static JAAS user list, no post-boot setup needed.
+      KAFKA_LISTENER_NAME_SASLPLAIN_SASL_ENABLED_MECHANISMS: PLAIN
+      KAFKA_LISTENER_NAME_SASLPLAIN_PLAIN_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.plain.PlainLoginModule required
+        username="admin" password="admin-secret" user_testuser="testpass";
+
+      # scram-sha256 / scram-sha512: the JAAS entry stays credential-free —
+      # SCRAM validates against credentials registered by kafka-scram-setup
+      # below (in the cluster metadata log), not against the JAAS config.
+      KAFKA_LISTENER_NAME_SASLSCRAM256_SASL_ENABLED_MECHANISMS: SCRAM-SHA-256
+      KAFKA_LISTENER_NAME_SASLSCRAM256_SCRAM-SHA-256_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.scram.ScramLoginModule required;
+      KAFKA_LISTENER_NAME_SASLSCRAM512_SASL_ENABLED_MECHANISMS: SCRAM-SHA-512
+      KAFKA_LISTENER_NAME_SASLSCRAM512_SCRAM-SHA-512_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.scram.ScramLoginModule required;
+
+      # mtls: the image's entrypoint only wires up SSL from a PKCS12/JKS
+      # keystore dropped in /etc/kafka/secrets, not raw PEM env values, so
+      # gen-kafka-certs.sh packages the same server/CA material as PKCS12.
+      # KAFKA_SSL_CLIENT_AUTH must be the *global* var (not listener-scoped):
+      # the image's bash setup script only wires up the truststore location
+      # when it sees this one, and there's only one SSL listener anyway.
+      # Same reasoning keeps the listener literally named "SSL" — that script
+      # also gates the keystore/truststore setup behind an exact "SSL://"
+      # substring match on KAFKA_ADVERTISED_LISTENERS.
+      KAFKA_SSL_CLIENT_AUTH: required
+      KAFKA_SSL_KEYSTORE_FILENAME: kafka.server.keystore.p12
+      KAFKA_SSL_KEYSTORE_CREDENTIALS: keystore_creds
+      KAFKA_SSL_KEY_CREDENTIALS: key_creds
+      KAFKA_SSL_KEYSTORE_TYPE: PKCS12
+      KAFKA_SSL_TRUSTSTORE_FILENAME: kafka.truststore.p12
+      KAFKA_SSL_TRUSTSTORE_CREDENTIALS: truststore_creds
+      KAFKA_SSL_TRUSTSTORE_TYPE: PKCS12
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+      - "9094:9094"
+      - "9095:9095"
+      - "9096:9096"
+    volumes:
+      - ./.kafka-certs/secrets:/etc/kafka/secrets:ro
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  kafka-scram-setup:
+    image: apache/kafka:3.9.0
+    container_name: go-sdk-it-kafka-scram-setup
+    # Shares kafka's network namespace so "localhost:9092" here is the broker
+    # container itself — KAFKA_ADVERTISED_LISTENERS says "localhost" (for the
+    # host-side `go test` process), which a sibling container reached over the
+    # bridge network by service name otherwise can't resolve back to itself.
+    network_mode: "service:kafka"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    # A single kafka-configs.sh call can't add two SCRAM mechanisms for the
+    # same user (broker rejects it as altering one resource twice), so this
+    # runs it once per mechanism.
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        /opt/kafka/bin/kafka-configs.sh --bootstrap-server=localhost:9092 --alter \
+          --entity-type=users --entity-name=testuser \
+          --add-config=SCRAM-SHA-256=[password=testpass]
+        /opt/kafka/bin/kafka-configs.sh --bootstrap-server=localhost:9092 --alter \
+          --entity-type=users --entity-name=testuser \
+          --add-config=SCRAM-SHA-512=[password=testpass]

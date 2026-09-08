@@ -36,6 +36,8 @@ A shared Go SDK (module `github.com/biairmal/go-sdk`, Go 1.25.1) — a collectio
 | `lib/lifecycle` | `Run()` graceful shutdown: signal/context trap, readiness flip + drain delay, ordered `Closer` cleanup, split timeouts, forced exit on a second signal |
 | `lib/common/dto` | `PageRequest` / `PageResponse` DTOs |
 | `lib/crypto` | `Encryptor`: field-level AES-256-GCM `Encrypt`/`Decrypt` + deterministic HMAC-SHA256 `BlindIndex` for exact-match lookup on encrypted columns; no swappable backend, no mock |
+| `lib/kafka` | `Client`: connection + SASL/TLS auth to Kafka, producer only; concrete type, no mock. Connection not yet implemented (`ErrNotImplemented`) |
+| `lib/queue` | `Publisher` interface; `NoOp`/`Logging`/`Kafka` backends; async fire-and-forget publish with cross-backend `WithKey`/`WithHeaders` options |
 
 > When you add a package, **add a row here** (see [Authoring rules](#authoring-rules)).
 
@@ -53,7 +55,8 @@ make check               # alias: make ci
 
 # Tests
 make test-unit           # go test -short ./...
-make test-integration    # go test ./...   (includes live-service integration tests)
+make test-integration    # go test -tags=integration ./... — needs docker-compose.integration.yaml up first
+                         # (scripts/gen-kafka-certs.sh once for the mTLS listener; see that file's header for ports/creds)
 make test-race           # go test -race -short ./...
 
 # Single package / single test

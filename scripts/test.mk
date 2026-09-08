@@ -24,13 +24,13 @@ test-unit: ## Run unit tests (go test -short ./...)
 	$(ECHO_EMPTY)
 	@echo "$(INDENT)$(PREFIX_OK)PROCESS COMPLETED SUCCESSFULLY"
 
-test-integration: ## Run all tests including integration (go test ./...)
+test-integration: ## Run all tests including integration (go test -tags=integration ./...); needs docker-compose.integration.yaml up
 	$(ECHO_EMPTY)
 	@echo "# Test"
 	$(ECHO_EMPTY)
 	@echo "$(INDENT)$(PREFIX_RUN)Running tests (including integration)..."
 	$(ECHO_EMPTY)
-	@go test ./...
+	@go test -tags=integration ./...
 	$(ECHO_EMPTY)
 	@echo "$(INDENT)$(PREFIX_OK)Tests passed"
 	$(ECHO_EMPTY)
@@ -90,7 +90,7 @@ help-test: ## Show test targets and descriptions
 	@echo "# Test"
 	@echo "  make test             ## Alias for test-unit"
 	@echo "  make test-unit        ## Run unit tests (go test -short ./...)"
-	@echo "  make test-integration ## Run all tests including integration"
+	@echo "  make test-integration ## Run all tests including integration (needs docker-compose.integration.yaml up)"
 	@echo "  make test-race        ## Run unit tests with race detector"
 	@echo "  make bench            ## Run benchmarks"
 	@echo "  make coverage         ## Generate coverage.out and coverage.html in out/"
