@@ -3,7 +3,9 @@
 package kafka
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -38,10 +40,31 @@ func createTopic(t *testing.T, topic string) {
 	if err != nil {
 		t.Fatalf("CreateTopics() error = %v, want nil", err)
 	}
+
+	// CreateTopics returns once the controller accepts the request, not once
+	// the topic's metadata is queryable cluster-wide — a Produce right after
+	// this call can still race "Unknown Topic Or Partition". Poll until the
+	// topic is actually visible before handing control back to the caller.
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if _, err := conn.ReadPartitions(topic); err == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("topic %q did not become visible within 10s of CreateTopics()", topic)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }
 
-// Integration tests for a real produce round trip against every AuthConfig.Mechanism.
-// Requires the broker from ../../docker-compose.integration.yaml:
+// errStopConsuming is returned by the test handler after the first message,
+// to stop Consume's otherwise-infinite loop without wrapping it in an
+// errorz value (Consume returns handler errors as-is).
+var errStopConsuming = errors.New("stop after first message")
+
+// Integration tests for a real produce/consume round trip against every
+// AuthConfig.Mechanism. Requires the broker from
+// ../../docker-compose.integration.yaml:
 //
 //	scripts/gen-kafka-certs.sh
 //	docker compose -f docker-compose.integration.yaml up -d
@@ -50,7 +73,7 @@ func createTopic(t *testing.T, topic string) {
 // One broker, one listener per mechanism (see the compose file's header
 // comment for the port/credential map); each case below dials its own port.
 
-func TestIntegration_Client_Produce(t *testing.T) {
+func TestIntegration_Client_ProduceConsume(t *testing.T) {
 	if testing.Short() {
 		t.Skip("integration test: requires a live Kafka broker")
 	}
@@ -113,6 +136,28 @@ func TestIntegration_Client_Produce(t *testing.T) {
 			err = client.Produce(ctx, topic, []byte("key"), []byte("value"), map[string]string{"h": "v"})
 			if err != nil {
 				t.Fatalf("Produce() error = %v, want nil (is a broker reachable at %s?)", err, tt.broker)
+			}
+
+			groupID := fmt.Sprintf("kafka-integration-test-group-%s-%d", tt.name, time.Now().UnixNano())
+			consumer, err := NewConsumer(cfg, groupID, topic)
+			if err != nil {
+				t.Fatalf("NewConsumer() error = %v, want nil", err)
+			}
+			defer func() { _ = consumer.Close() }()
+
+			var got Message
+			err = consumer.Consume(ctx, func(_ context.Context, msg Message) error {
+				got = msg
+				return errStopConsuming
+			})
+			if !errors.Is(err, errStopConsuming) {
+				t.Fatalf("Consume() error = %v, want errStopConsuming", err)
+			}
+			if got.Topic != topic || !bytes.Equal(got.Key, []byte("key")) || !bytes.Equal(got.Value, []byte("value")) {
+				t.Errorf("Consume() got = %+v, want topic=%s key=key value=value", got, topic)
+			}
+			if got.Headers["h"] != "v" {
+				t.Errorf("Consume() got.Headers[h] = %q, want %q", got.Headers["h"], "v")
 			}
 		})
 	}

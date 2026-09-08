@@ -36,8 +36,8 @@ A shared Go SDK (module `github.com/biairmal/go-sdk`, Go 1.25.1) — a collectio
 | `lib/lifecycle` | `Run()` graceful shutdown: signal/context trap, readiness flip + drain delay, ordered `Closer` cleanup, split timeouts, forced exit on a second signal |
 | `lib/common/dto` | `PageRequest` / `PageResponse` DTOs |
 | `lib/crypto` | `Encryptor`: field-level AES-256-GCM `Encrypt`/`Decrypt` + deterministic HMAC-SHA256 `BlindIndex` for exact-match lookup on encrypted columns; no swappable backend, no mock |
-| `lib/kafka` | `Client`: connection + SASL/TLS auth to Kafka, producer only; concrete type, no mock. Connection not yet implemented (`ErrNotImplemented`) |
-| `lib/queue` | `Publisher` interface; `NoOp`/`Logging`/`Kafka` backends; async fire-and-forget publish with cross-backend `WithKey`/`WithHeaders` options |
+| `lib/kafka` | `Client`/`Consumer`: SASL/TLS-authenticated Kafka producer + one-topic-per-group consumer; concrete types, no mock |
+| `lib/queue` | `Publisher`/`Subscriber` interfaces; `NoOp`/`Logging`/`Kafka` publish backends + `Kafka` subscribe backend; fire-and-forget publish (`WithKey`/`WithHeaders`) and at-least-once, manual-commit subscribe |
 
 > When you add a package, **add a row here** (see [Authoring rules](#authoring-rules)).
 

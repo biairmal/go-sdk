@@ -19,7 +19,8 @@ Phases are listed in **build order** — each builds on the ones above it.
 | 7 | `circuitbreaker` | Outbound dependency protection | ✅ **Done** |
 | 8 | `lifecycle` | Graceful shutdown | ✅ **Done** |
 | 9 | `crypto` | Field-level authenticated encryption (`Encrypt`/`Decrypt`, AES-256-GCM) + deterministic `BlindIndex` (HMAC-SHA256) for exact-match lookup on encrypted fields; separate keys for each, via `Config` | ✅ **Done** |
-| 10 | `queue` | Async message publishing abstraction (`Publisher.Publish`), swappable backend + `NoOp`/logging fake | 🔲 **Designed** — not implemented |
+| 10 | `queue` | Async message publishing abstraction (`Publisher.Publish`), swappable backend + `NoOp`/logging fake | ✅ **Done** |
+| 11 | `queue`/`kafka` | Consumer side: `kafka.Consumer` (`kafka.Reader`-backed) + `queue.Subscriber` | ✅ **Done** |
 
 Ordered **easiest-independent-first**. The only hard constraint: `ctxkit` (Phase 1, done) must precede
 `tracer`/`auth`/`metrics`, which write their context values through it. Everything else is independent —
@@ -604,7 +605,7 @@ func (e *Encryptor) BlindIndex(value string) string
 
 ---
 
-## Phase 10 — `queue` (Async Message Publishing Abstraction) 🔲 Designed — not implemented
+## Phase 10 — `queue` (Async Message Publishing Abstraction) ✅ DONE
 
 Requested by `guest-management-be` B8 (`guests.InvitationPublisher`) — see
 [guest-management-be B8](../../guest-management-be/docs/DEVELOPMENT_PLAN.md). `guests.SendInvitation` needs to
@@ -749,7 +750,8 @@ replacing `guest-management-be`'s `loggingInvitationPublisher` once wired.
 underneath it, so no mock; `queue.Publisher` is the seam consumers and tests use instead.
 
 **Non-goals** (deferred, not required by B8's acceptance criteria):
-- **Consumer/`Subscriber`.** See above — added as a `kafka.Reader`-backed type when a real consumer story exists.
+- **Consumer/`Subscriber`.** Designed in Phase 11 below, added as a `kafka.Reader`-backed type when a real
+  consumer story exists.
 - **OAUTHBEARER / Kerberos / AWS MSK IAM.** Not built into `segmentio/kafka-go`'s `sasl` package and nothing here
   needs them yet; adding one later is a custom `sasl.Mechanism` implementation plus one more `case` in
   `buildSASLMechanism`, not a redesign.
@@ -759,6 +761,113 @@ underneath it, so no mock; `queue.Publisher` is the seam consumers and tests use
   same as every other SDK serialization boundary (`serializer`).
 
 **Deps:** `github.com/segmentio/kafka-go` (+ `kafka-go/sasl/plain`, `kafka-go/sasl/scram`).
+
+---
+
+## Phase 11 — `queue` Subscriber (Consumer) ✅ DONE
+
+Deferred from Phase 10's own non-goals, then implemented per the design below: `kafka.Consumer` (`kafka/consumer.go`
++ `kafka/consumer__test.go`, extends `kafka/kafka_integration_test.go`'s produce test into a produce/consume round
+trip) and `queue.Subscriber` (`queue/subscriber.go`, `queue/kafka_subscriber.go` + tests). Shipped exactly as
+designed — no deviations. `NewConsumer`/`NewKafkaSubscriber` take `*Config`, not `Config` by value, matching the
+`hugeParam`-driven precedent `kafka.New`/`queue.FromConfig` already set in Phase 10 (the sketch below predates that
+lint pass).
+
+**Shape:** two additions, no new packages — extends the two Phase 10 packages exactly as Phase 10 predicted.
+
+- **`kafka.Consumer`** — wraps `segmentio/kafka-go`'s `kafka.Reader`, bound to one `(Config, groupID, topic)` at
+  construction (`Reader`'s own model: one `Reader` = one group + one topic's partitions — there's no producer-side
+  "any topic per call" equivalent on the consume side). Reuses `buildSASLMechanism`/`buildTLSConfig` from
+  `kafka/auth.go`, wired into a `kafka.Dialer` instead of `Writer`'s `Transport` (`Reader` takes a `Dialer`, not a
+  `Transport` — different kafka-go type, same two builder funcs, no duplication).
+- **`queue.Subscriber`** — the interface `guest-management-be` would import; mirrors `Publisher`'s per-call-topic
+  shape. `NewKafkaSubscriber(cfg, groupID)` builds a fresh `kafka.Consumer` inside each `Subscribe` call (scoped to
+  that call's topic) and closes it when the call returns.
+
+### API sketch
+
+```go
+// kafka/consumer.go
+type Consumer struct { /* unexported *kafkago.Reader */ }
+
+// NewConsumer validates cfg and returns a Consumer bound to one group +
+// topic. Reuses buildSASLMechanism/buildTLSConfig via a kafka.Dialer.
+func NewConsumer(cfg *Config, groupID, topic string) (*Consumer, error)
+
+// Consume blocks: Fetch → handler → Commit, one message at a time, in
+// partition order, until ctx is done or handler/Fetch returns an error.
+// A handler error stops the loop with that message left uncommitted — see
+// Delivery semantics below. Returns nil on clean ctx cancellation.
+func (c *Consumer) Consume(ctx context.Context, handler func(ctx context.Context, msg Message) error) error
+
+// Close releases the underlying connection. The Consumer must not be used
+// afterward.
+func (c *Consumer) Close() error
+```
+
+```go
+// queue/queue.go (addition alongside Publisher)
+
+// Message is one delivery handed to a Subscriber's Handler.
+type Message struct {
+    Topic   string
+    Key     []byte
+    Value   []byte
+    Headers map[string]string
+}
+
+// Handler processes one Message. A nil error commits it (advances the
+// offset); a non-nil error stops the owning Subscribe call with the message
+// uncommitted — see Phase 11's Delivery semantics.
+type Handler func(ctx context.Context, msg Message) error
+
+// Subscriber abstracts a blocking consume loop behind a swappable backend.
+type Subscriber interface {
+    // Subscribe blocks, delivering messages from topic to handler one at a
+    // time, until ctx is done or an unrecoverable backend error occurs.
+    Subscribe(ctx context.Context, topic string, handler Handler) error
+}
+```
+
+```go
+// queue/kafka_subscriber.go
+func NewKafkaSubscriber(cfg *kafka.Config, groupID string) Subscriber
+```
+
+### Delivery semantics — the one real design decision here
+
+At-least-once, manual commit, **no in-process retry/backoff, no DLQ**: `Consume`'s loop is `Fetch → handler(msg) →
+if err != nil { return err }` (loop stops, that message stays uncommitted) `→ Commit → next`. A handler error is
+fatal to that `Subscribe` call — the caller (a goroutine the app owns, e.g. started alongside `lifecycle.Run` and
+canceled by the same shutdown context) decides whether to restart it. On restart, the consumer group resumes from
+the last committed offset, so the failed message (and anything fetched-but-uncommitted after it) is redelivered.
+This is the simplest correct at-least-once strategy — crash-and-resume, not in-loop retry — and matches Phase 10's
+own "delivery guarantees tuning" non-goal: retry/backoff/DLQ is a real feature with real tradeoffs (max attempts,
+poison-message handling), not a default a subscriber should silently apply.
+
+**No `NoOp`/`Logging` Subscriber backends.** `Publisher.NewNoOp` lets a caller "publish to nowhere" — a meaningful
+no-op. A subscriber with nothing to consume from isn't: there's no message source to fake, so a `NoOpSubscriber`
+would just block on `<-ctx.Done()` forever — a test/wiring convenience, not a production stand-in. Build it only
+if a concrete test need shows up; nothing here requires it speculatively.
+
+### Non-goals
+
+- **Multi-topic single-group fan-in** (`kafka.ReaderConfig.GroupTopics`). One `Consumer` = one topic; a service
+  that needs several topics runs several `Subscribe` calls (goroutines) — same as running several independent
+  consumers in any other design. `GroupTopics` exists in kafka-go for a narrower case (identical processing across
+  topics under one group) nothing here needs yet.
+- **Retry/backoff/DLQ.** See Delivery semantics above — crash-and-resume is the v1 strategy; a real retry policy
+  is a follow-up once a concrete reliability requirement exists (same posture as Phase 10's deferred delivery
+  tuning).
+- **Concurrent/batched handler dispatch.** `Consume` processes one message at a time, in order, on the calling
+  goroutine — matches `kafka.Reader`'s own per-partition ordering guarantee. Fan-out to worker goroutines, if
+  throughput ever needs it, is the caller's concern, not this package's.
+- **`NoOp`/`Logging` Subscriber backends.** See above.
+- **OAUTHBEARER / Kerberos / AWS MSK IAM, consumer-side tuning knobs** (min/max bytes, max wait, queue capacity,
+  ...) beyond group + topic. kafka-go defaults apply; same posture as Phase 10's producer non-goals — add a
+  `Config` field only when a concrete need shows up.
+
+**Deps:** none beyond what Phase 10 already added (`segmentio/kafka-go`).
 
 ---
 

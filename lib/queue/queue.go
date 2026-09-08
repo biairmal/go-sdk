@@ -11,7 +11,7 @@
 //	err = pub.Publish(ctx, "orders.created", body, queue.WithKey([]byte(orderID)))
 package queue
 
-//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=../../mocks/queue/mock_queue.go -package=mockqueue github.com/biairmal/go-sdk/lib/queue Publisher
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=../../mocks/queue/mock_queue.go -package=mockqueue github.com/biairmal/go-sdk/lib/queue Publisher,Subscriber
 
 import "context"
 
