@@ -7,7 +7,7 @@ Router-agnostic HTTP utilities for Go: handler adapter, middlewares (recover, lo
 - **Response**: `BaseResponse[T]`, `ErrorPayload`, `JSON()`, and success helpers (`OK`, `Created`, `NoContent`) for a consistent API envelope.
 - **Handler**: `handler.Func` and `handler.Handle` convert a function `func(*http.Request) (any, error)` into an `http.HandlerFunc`; errors are mapped to HTTP status via errorz codes and written with the same envelope.
 - **Middleware**: `Chain`, `Recover`, `Logging` (with optional request/response and body logging), and `RequestID`; all have signature `func(http.Handler) http.Handler`.
-- **Health / Readiness**: `Health()` always returns 200 (liveness); `Readiness(check)` returns 200 if `check(ctx)` is nil, otherwise 503.
+- **Health / Readiness / Version**: `Health()` always returns 200 (liveness); `Readiness(check)` returns 200 if `check(ctx)` is nil, otherwise 503; `Version(version)` always returns 200 with JSON body `{"version":"<version>"}`.
 - **Client**: Thin client that decodes responses into `response.BaseResponse[T]`.
 
 ## Response format
@@ -52,6 +52,7 @@ Apply middlewares so that the first in the list is the outermost (runs first on 
 
 - **Health (liveness)**: `httpkit.Health()` — always 200, optional JSON body `{"status":"ok"}`.
 - **Readiness**: `httpkit.Readiness(check)` — runs `check(ctx)`; 200 if nil, 503 if non-nil (body uses the same error envelope).
+- **Version**: `httpkit.Version(version)` — always 200, JSON body `{"version":"<version>"}`.
 
 ## Mounting examples
 
