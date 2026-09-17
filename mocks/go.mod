@@ -2,10 +2,8 @@ module github.com/biairmal/go-sdk/mocks
 
 go 1.25.1
 
-replace github.com/biairmal/go-sdk => ../
-
 require (
-	github.com/biairmal/go-sdk v0.0.0-00010101000000-000000000000
+	github.com/biairmal/go-sdk v0.1.0
 	go.uber.org/mock v0.6.0
 )
 
