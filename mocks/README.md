@@ -27,6 +27,7 @@ another package's dependencies (importing `mocks/logger` does **not** pull in `g
 | `github.com/biairmal/go-sdk/mocks/logger` | `mocklogger` | `NewMockLogger(ctrl)` |
 | `github.com/biairmal/go-sdk/mocks/redis` | `mockredis` | `NewMockClient(ctrl)`, `NewMockPipeliner(ctrl)` |
 | `github.com/biairmal/go-sdk/mocks/repository` | `mockrepository` | `NewMockRepository[E,ID](ctrl)`, `NewMockReadRepository[E,ID]`, `NewMockWriteRepository[E,ID]`, `NewMockTransactionalRepository[E,ID]` |
+| `github.com/biairmal/go-sdk/mocks/authz` | `mockauthz` | `NewMockAuthorizer(ctrl)`, `NewMockScopeResolver(ctrl)` |
 
 ## Usage
 

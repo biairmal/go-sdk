@@ -30,6 +30,7 @@ A shared Go SDK (module `github.com/biairmal/go-sdk`, Go 1.25.1) — a collectio
 | `lib/validator` | `Validator` interface wrapping go-playground/validator/v10; struct-tag + single-value validation; `errorz` field errors |
 | `lib/tracer` | `Tracer`/`Span` interfaces; OTel OTLP/gRPC backend + `NoOp`; W3C propagation; server middleware (`httpkit/middleware.Tracing`) |
 | `lib/auth` | `Validator`/`Claims`/`Issuer`; remote (mappable) + HS256/RS256/JWKS; config-driven route `Policy`; TTL cache; token issuing; server middleware (`httpkit/middleware.Auth`) |
+| `lib/authz` | `Authorizer` (`Can`/`Require`/`Permissions`/`RequireIn`); permissions from token claim, static role map, or identity role map (cached, stale-while-error); `*` and `prefix:*` grants; super admin claim; `ScopeResolver` for resource-scoped roles; server middleware (`httpkit/middleware.RequirePermission`) |
 | `lib/metrics` | `Recorder` interface; Prometheus backend + `NoOp`; dynamic metric registration; HTTP request count/duration/in-flight middleware (`httpkit/middleware.Metrics`) |
 | `lib/ratelimit` | `Limiter` interface; in-memory token bucket (`golang.org/x/time/rate`) + Redis sliding-window (Lua) backends; 429 middleware with headers (`httpkit/middleware.RateLimit`) |
 | `lib/circuitbreaker` | `Breaker` interface; own closed/open/half-open state machine (no third-party dep); `Do[T]` generic helper; `ErrOpen`→503 |
