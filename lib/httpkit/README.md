@@ -47,6 +47,7 @@ Apply middlewares so that the first in the list is the outermost (runs first on 
 - **Recover**: Catches panics and writes a 500 response with the error envelope.
 - **RequestID**: Injects or reads `X-Request-Id`, puts it in context; use `middleware.RequestIDKey` with your logger’s ContextExtractor.
 - **Logging**: Logs request and/or response (path, IP, method, status, duration, optional body). Use `Logging(log, opts)`; if `opts` is nil, request and response with body are logged. Set `LoggingOptions.LogRequest`, `LogResponse`, `LogRequestBody`, `LogResponseBody`, and `MaxBodyBytesForLogging` to tune.
+- **RequirePermission / RequireAny**: Per-route permission checks over an [authz](../authz/README.md) `Authorizer`. Place them inside `Auth` (they read its claims): 401 without claims, 403 without the permission. Mount per route, e.g. `mux.Handle("POST /v1/notes", middleware.RequirePermission(az, "notes:write")(createNote))`.
 
 ## Health and readiness
 
