@@ -142,6 +142,8 @@ func (c *jwksCache) fetchLocked(ctx context.Context) error {
 type jwk struct {
 	Kty string `json:"kty"`
 	Kid string `json:"kid"`
+	Use string `json:"use,omitempty"`
+	Alg string `json:"alg,omitempty"`
 	N   string `json:"n"`
 	E   string `json:"e"`
 }
@@ -163,7 +165,7 @@ func parseJWKS(r io.Reader) (map[string]*rsa.PublicKey, error) {
 		if k.Kty != "RSA" {
 			continue
 		}
-		pub, err := jwkToRSA(k)
+		pub, err := jwkToRSA(&k)
 		if err != nil {
 			continue
 		}
@@ -176,7 +178,7 @@ func parseJWKS(r io.Reader) (map[string]*rsa.PublicKey, error) {
 }
 
 // jwkToRSA converts a single RSA JWK (base64url n/e) into an *rsa.PublicKey.
-func jwkToRSA(k jwk) (*rsa.PublicKey, error) {
+func jwkToRSA(k *jwk) (*rsa.PublicKey, error) {
 	nBytes, err := base64.RawURLEncoding.DecodeString(k.N)
 	if err != nil {
 		return nil, err

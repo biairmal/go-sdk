@@ -105,6 +105,15 @@ Issuer construction options (`NewHS256Issuer`, `NewRS256Issuer`):
 | `WithIssuerName(iss)` | The `iss` claim written on issued tokens. |
 | `WithDefaultTTL(d)` | Default token lifetime. Default 15m. |
 | `WithDefaultAudience(aud)` | Default `aud` claim. |
+| `WithKeyID(kid)` | Write a `kid` header on every token so verifiers pick the key from a JWKS. |
+
+Publishing keys: `JWKSHandler(func() []PublicKey)` serves an RFC 7517 key set (`kty`, `kid`, `use: sig`,
+`alg: RS256`, `n`, `e`) with `Cache-Control: public, max-age=300`. The func runs per request, so a rotating key
+set needs no handler rebuild:
+
+```go
+mux.Handle("GET /.well-known/jwks.json", auth.JWKSHandler(keyset.Public))
+```
 
 Issue-time options (`Issue`):
 
