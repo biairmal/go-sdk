@@ -25,6 +25,7 @@ type issuerSettings struct {
 	name       string
 	defaultTTL time.Duration
 	audience   string
+	keyID      string
 }
 
 // IssuerOption configures an Issuer at construction time.
@@ -54,6 +55,16 @@ func WithDefaultAudience(aud string) IssuerOption {
 	return func(s *issuerSettings) {
 		if aud != "" {
 			s.audience = aud
+		}
+	}
+}
+
+// WithKeyID sets the "kid" header written on every issued token, so verifiers
+// can select the matching key from a JWKS. A blank kid is ignored.
+func WithKeyID(kid string) IssuerOption {
+	return func(s *issuerSettings) {
+		if kid != "" {
+			s.keyID = kid
 		}
 	}
 }
@@ -209,7 +220,11 @@ func (i *jwtIssuer) Issue(subject string, opts ...IssueOption) (string, error) {
 		claims["roles"] = cfg.roles
 	}
 
-	signed, err := jwt.NewWithClaims(i.method, claims).SignedString(i.key)
+	token := jwt.NewWithClaims(i.method, claims)
+	if i.settings.keyID != "" {
+		token.Header["kid"] = i.settings.keyID
+	}
+	signed, err := token.SignedString(i.key)
 	if err != nil {
 		return "", errorz.Wrap(err).WithCode(errorz.CodeInternal).WithMessage("auth: sign token")
 	}
