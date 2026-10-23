@@ -63,7 +63,7 @@ func isFieldZero(v reflect.Value) bool {
 		return true
 	}
 	switch v.Kind() {
-	case reflect.Ptr, reflect.Interface:
+	case reflect.Pointer, reflect.Interface:
 		if v.IsNil() {
 			return true
 		}
@@ -146,7 +146,7 @@ func fieldValueToAny(v reflect.Value) any {
 	if !v.IsValid() {
 		return nil
 	}
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return nil
 		}
@@ -233,7 +233,7 @@ func IsEntityIDFieldInt64[T any](entity *T, idColumn string) bool {
 	if ft.Kind() == reflect.Int64 {
 		return true
 	}
-	if ft.Kind() == reflect.Ptr && ft.Elem().Kind() == reflect.Int64 {
+	if ft.Kind() == reflect.Pointer && ft.Elem().Kind() == reflect.Int64 {
 		return true
 	}
 	return false
@@ -306,13 +306,13 @@ func ScanReturnedIDAndSetEntity[T any](entity *T, idColumn string, row RowScanne
 	switch {
 	case ft == uuidTypeRef:
 		handler = scanReturnedIDUUID
-	case ft.Kind() == reflect.Ptr && ft.Elem() == uuidTypeRef:
+	case ft.Kind() == reflect.Pointer && ft.Elem() == uuidTypeRef:
 		handler = scanReturnedIDPtrUUID
 	case ft.Kind() == reflect.String:
 		handler = scanReturnedIDString
 	case ft.Kind() == reflect.Int64:
 		handler = scanReturnedIDInt64
-	case ft.Kind() == reflect.Ptr && ft.Elem().Kind() == reflect.Int64:
+	case ft.Kind() == reflect.Pointer && ft.Elem().Kind() == reflect.Int64:
 		handler = scanReturnedIDPtrInt64
 	default:
 		return nil
@@ -342,7 +342,7 @@ func SetEntityID[T any](entity *T, id int64, idColumn string) error {
 			continue
 		}
 		field := val.Field(i)
-		if field.Kind() == reflect.Ptr {
+		if field.Kind() == reflect.Pointer {
 			if field.Type().Elem().Kind() != reflect.Int64 {
 				return nil
 			}

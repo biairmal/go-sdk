@@ -1,6 +1,6 @@
 module github.com/biairmal/go-sdk/mocks
 
-go 1.25.1
+go 1.26.0
 
 require (
 	github.com/biairmal/go-sdk v0.1.0

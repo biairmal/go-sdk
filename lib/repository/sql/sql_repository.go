@@ -71,7 +71,7 @@ func WithSelectColumns[TEntity any, TID comparable](columns []string) SQLReposit
 // WithIDColumn sets the ID column name (default "id").
 func WithIDColumn[TEntity any, TID comparable](column string) SQLRepositoryOption[TEntity, TID] {
 	return func(r *SQLRepository[TEntity, TID]) {
-		r.BaseRepository = r.BaseRepository.WithIDColumn(column)
+		r.BaseRepository = r.WithIDColumn(column)
 	}
 }
 

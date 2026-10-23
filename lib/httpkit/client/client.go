@@ -38,7 +38,7 @@ func Do[T any](ctx context.Context, c *Client, req *http.Request) (
 		c = New(nil)
 	}
 	req = req.WithContext(ctx)
-	resp, err := c.HTTPClient.Do(req)
+	resp, err := c.HTTPClient.Do(req) //nolint:gosec // generic client: the caller chooses the URL
 	if err != nil {
 		return result, 0, nil, err
 	}

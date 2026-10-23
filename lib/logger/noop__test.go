@@ -12,9 +12,6 @@ func TestNewNoOp(t *testing.T) {
 	if log == nil {
 		t.Fatal("NewNoOp() returned nil")
 	}
-
-	// Verify it implements Logger interface
-	var _ Logger = log
 }
 
 func TestNoOpLogger_AllMethods(t *testing.T) {

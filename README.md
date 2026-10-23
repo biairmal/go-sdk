@@ -29,7 +29,7 @@ Before developing or depending on this package:
 
 | Requirement   | Purpose |
 | -------------- | ------- |
-| **Go 1.25.1+** | Build and test. Check with `go version`. |
+| **Go 1.26+** | Build and test. Check with `go version`. |
 | **Make**       | Run format, lint, test, coverage, and tool installation. On Windows, use Git Bash, WSL, or [GnuWin32 Make](http://gnuwin32.sourceforge.net/packages/make.htm). |
 
 Optional (installed via `make install-tools` when needed):

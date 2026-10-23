@@ -10,7 +10,7 @@ For deeper reference: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/PATT
 
 ## Orientation
 
-A shared Go SDK (module `github.com/biairmal/go-sdk`, Go 1.25.1) — a collection of **independent sub-packages with no required entry point**. Consumers import only what they need. All public APIs use standard-library types where possible (`http.Handler`, `*sql.DB`, `context.Context`) so the SDK stays framework-agnostic.
+A shared Go SDK (module `github.com/biairmal/go-sdk`, Go 1.26) — a collection of **independent sub-packages with no required entry point**. Consumers import only what they need. All public APIs use standard-library types where possible (`http.Handler`, `*sql.DB`, `context.Context`) so the SDK stays framework-agnostic.
 
 ### Package map
 

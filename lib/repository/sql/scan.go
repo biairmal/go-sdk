@@ -50,7 +50,7 @@ func ScanRow[T any](rows *sql.Rows) (*T, error) {
 			dest[i] = &uuidScans[i]
 			continue
 		}
-		if ft.Kind() == reflect.Ptr && ft.Elem() == uuidType {
+		if ft.Kind() == reflect.Pointer && ft.Elem() == uuidType {
 			dest[i] = &uuidScans[i]
 			continue
 		}
@@ -80,7 +80,7 @@ func applyUUIDFields(ptr reflect.Value, columns []string, mapping map[string]int
 			setUUIDFieldFromScan(field, uuidScans[i], false)
 			continue
 		}
-		if ft.Kind() == reflect.Ptr && ft.Elem() == uuidType {
+		if ft.Kind() == reflect.Pointer && ft.Elem() == uuidType {
 			setUUIDFieldFromScan(field, uuidScans[i], true)
 		}
 	}
@@ -102,6 +102,7 @@ func setUUIDFieldFromScan(field reflect.Value, scan *string, ptr bool) {
 }
 
 // ReflectScan returns a function that maps rows to *T using struct tag `db:"column_name"`.
+//
 // Deprecated: use ScanRow[T] directly for new code.
 func ReflectScan[T any]() func(*sql.Rows) (*T, error) {
 	return ScanRow[T]

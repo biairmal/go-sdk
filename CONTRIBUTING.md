@@ -6,7 +6,7 @@ Thanks for working on `github.com/biairmal/go-sdk`. This page covers human onboa
 
 | Requirement | Purpose |
 |---|---|
-| **Go 1.25.1+** | Build and test. Check with `go version`. |
+| **Go 1.26+** | Build and test. Check with `go version`. |
 | **Make** | Format, lint, test, coverage, tool install. On Windows use Git Bash, WSL, or GnuWin32 Make. |
 
 Optional tools (installed on demand):
