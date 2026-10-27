@@ -39,6 +39,7 @@ A shared Go SDK (module `github.com/biairmal/go-sdk`, Go 1.26) — a collection 
 | `lib/crypto` | `Encryptor`: field-level AES-256-GCM `Encrypt`/`Decrypt` + deterministic HMAC-SHA256 `BlindIndex` for exact-match lookup on encrypted columns; no swappable backend, no mock |
 | `lib/kafka` | `Client`/`Consumer`: SASL/TLS-authenticated Kafka producer + one-topic-per-group consumer; concrete types, no mock |
 | `lib/queue` | `Publisher`/`Subscriber` interfaces; `NoOp`/`Logging`/`Kafka` publish backends + `Kafka` subscribe backend; fire-and-forget publish (`WithKey`/`WithHeaders`) and at-least-once, manual-commit subscribe |
+| `lib/mailer` | `Mailer` validates (`Validate`: required fields, `net/mail` syntax, CR/LF header injection) and sends through a `Transport`; `SMTPTransport` over stdlib `net/smtp` (STARTTLS, implicit TLS, none); MIME with `multipart/alternative` and Q-encoded subject; `mailer/template` registry of `text/template`/`html/template` bodies from an `fs.FS` |
 
 > When you add a package, **add a row here** (see [Authoring rules](#authoring-rules)).
 
