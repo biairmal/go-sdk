@@ -38,6 +38,7 @@ Adding a new sub-package? Follow [docs/NEW_PACKAGE_CHECKLIST.md](docs/NEW_PACKAG
 
 ## Pull requests
 
+- Branch, title and PR body follow [Git conventions](AGENTS.md#git-conventions); GitHub pre-fills the body from `.github/pull_request_template.md`.
 - Keep PRs scoped to one concern; update the relevant `README.md` and the [package map](AGENTS.md#package-map) when you add or change a package.
 - Don't merge with a failing `make check`.
 - Document any new convention in [AGENTS.md](./AGENTS.md) (rules) or [docs/](docs/) (reference) — not in tool-specific files.
