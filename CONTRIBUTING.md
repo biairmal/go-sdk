@@ -48,8 +48,9 @@ commit on `main`.
   bug, security, or refactor, with its source), `### What changed` and `### Verification` are required. Verification
   quotes each command's real output from the final pushed head, keeps failed or skipped checks in the table, and
   lists what was not verified.
-- **Releases:** tag `vX.Y.Z` on `main`. A change to an interface the `mocks` module covers also needs a
-  `mocks/vX.Y.Z` tag after the mocks are regenerated.
+- **Releases:** tag `vX.Y.Z` on `main`. When anything under `mocks/` changed since the last `mocks/v*` tag (a
+  new or changed mock, or its `go.mod`), also tag `mocks/vX.Y.Z`. Check with
+  `git diff --stat <last mocks tag> -- mocks`.
 
 ## Definition of Done
 
@@ -65,8 +66,8 @@ commit on `main`.
 - [ ] Any configuration is an exported `Config` struct with **`mapstructure` snake_case tags** (non-serializable
       fields tagged `-`), a `DefaultConfig()`, and a `Validate()`; `WithX` is used only for optional deps and
       non-serializable behaviour.
-- [ ] Every new exported interface has a **`//go:generate mockgen` directive** writing into `mocks/<pkg>/`;
-      `make mocks` was run and the generated files committed.
+- [ ] Every new exported interface has a **`//go:generate mockgen` directive** writing into `mocks/<pkg>/`. After
+      adding or changing a mocked interface, `make mocks` was run and its output committed (CI fails otherwise).
 - [ ] The README, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [SECURITY.md](SECURITY.md) match the change.
 
 ## How the guideline files fit together

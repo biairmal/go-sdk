@@ -35,6 +35,12 @@ jobs:
         run: make vulncheck
       - name: Dependencies
         run: make deps-verify
+      # A new or changed interface must ship its regenerated mock.
+      - name: Mocks in sync
+        run: |
+          make mocks
+          # porcelain also lists new, untracked mock files.
+          test -z "$(git status --porcelain -- mocks)" || { git status --porcelain -- mocks; exit 1; }
       - name: Mocks module builds
         working-directory: mocks
         run: go build ./...
