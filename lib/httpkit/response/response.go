@@ -34,7 +34,8 @@ type ErrorPayload struct {
 
 // ErrorFromErr builds an ErrorPayload from an error.
 // If the error is a *errorz.Error, Code, Message, SourceSystem, and Meta are copied.
-// Otherwise a generic payload with code "ERR_INTERNAL" and the error string as message is returned.
+// The text of any other error, and of an errorz.Error without a Message, is never
+// copied: it can hold SQL, paths or panic values, so the payload says internalMessage.
 func ErrorFromErr(err error) ErrorPayload {
 	if err == nil {
 		return ErrorPayload{Code: "ERR_INTERNAL", Message: "unknown error"}
@@ -43,16 +44,18 @@ func ErrorFromErr(err error) ErrorPayload {
 	if errors.As(err, &errz) && errz != nil {
 		return ErrorPayload{
 			Code:         nonEmpty(errz.Code, "ERR_INTERNAL"),
-			Message:      nonEmpty(errz.Message, errz.Error()),
+			Message:      nonEmpty(errz.Message, internalMessage),
 			SourceSystem: errz.SourceSystem,
 			Meta:         errz.Meta,
 		}
 	}
 	return ErrorPayload{
 		Code:    "ERR_INTERNAL",
-		Message: err.Error(),
+		Message: internalMessage,
 	}
 }
+
+const internalMessage = "internal server error"
 
 func nonEmpty(a, b string) string {
 	if a != "" {

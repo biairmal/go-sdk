@@ -67,3 +67,23 @@ func TestOK_Created_NoContent(t *testing.T) {
 		t.Error("NoContent status should be 204")
 	}
 }
+
+func TestErrorFromErrHidesInternalText(t *testing.T) {
+	secret := errors.New(`pq: relation "users" does not exist`)
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"plain error", secret, "internal server error"},
+		{"errorz without message", errorz.Wrap(secret), "internal server error"},
+		{"errorz with message", errorz.Wrap(secret).WithMessage("user lookup failed"), "user lookup failed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ErrorFromErr(tt.err).Message; got != tt.want {
+				t.Errorf("Message = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
