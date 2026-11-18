@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          # Newest stable Go: older patch releases carry standard-library vulnerabilities that govulncheck reports.
+          go-version: stable
+          check-latest: true
+      - name: Install tools
+        run: |
+          go install mvdan.cc/gofumpt@latest
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+      # gofumpt -l exits 0 even when it lists files, so fail on any output.
+      - name: Format
+        run: test -z "$(gofumpt -l .)" || { gofumpt -l .; exit 1; }
+      - name: Lint
+        run: make lint
+      - name: Unit tests
+        run: make test-unit
+      - name: Vulnerabilities
+        run: make vulncheck
+      - name: Dependencies
+        run: make deps-verify
+      - name: Mocks module builds
+        working-directory: mocks
+        run: go build ./...
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          check-latest: true
+      - name: Start Redis and Kafka
+        run: |
+          bash scripts/gen-kafka-certs.sh
+          docker compose -f docker-compose.integration.yaml up -d
+          # kafka-scram-setup starts once Kafka is healthy, registers the SCRAM users, then exits.
+          test "$(docker wait go-sdk-it-kafka-scram-setup)" = 0
+      - name: Integration tests
+        run: make test-integration
+      - name: Service logs
+        if: failure()
+        run: docker compose -f docker-compose.integration.yaml logs

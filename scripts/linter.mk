@@ -2,15 +2,15 @@
 #
 # Provides: install-linter, lint, lint-fix, help-linter.
 # Install: uses go install (works in PowerShell and other shells).
-# Default version: latest v2 (config uses version: "2").
-# Override with GOLANGCI_LINT_VERSION=v2.xx if you need a pinned version.
+# Config uses version: "2", so the linter must be v2.
+# Pinned to match CI (.github/workflows/ci.yml). Override with GOLANGCI_LINT_VERSION=v2.xx.
 # Prerequisite: include vars.mk first (for GOPATH_BIN, PATH_SEP, BIN_EXT, output vars).
 # Config: root .golangci.yml. Output convention: section "# Linter", body $(INDENT)$(PREFIX_*).
 # Fail-fast (1c): do not use '-' prefix; command failures propagate so Make stops.
 
 include $(SCRIPTS_DIR)/vars.mk
 
-GOLANGCI_LINT_VERSION ?= latest
+GOLANGCI_LINT_VERSION ?= v2.15.0
 GOLANGCI_LINT_BIN := $(GOPATH_BIN)$(PATH_SEP)golangci-lint$(BIN_EXT)
 
 install-linter: ## Install golangci-lint into GOPATH/bin (go install)

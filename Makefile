@@ -55,6 +55,7 @@ ci: ## Run all checks (format-check, lint, test, coverage, vulncheck, deps-verif
 	@$(MAKE) lint-fix
 	@$(MAKE) test-unit
 	@$(MAKE) coverage
+	@$(MAKE) vulncheck
 	@$(MAKE) deps-verify
 	$(ECHO_EMPTY)
 	@echo "[OK] CI COMPLETED SUCCESSFULLY"

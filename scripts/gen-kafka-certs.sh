@@ -44,11 +44,15 @@ openssl pkcs12 -export -in server.pem -inkey server.key -certfile ca.pem \
 # so the broker rejects every mTLS client with "trustAnchors ... must be
 # non-empty". keytool (same JDK the broker runs on) doesn't have this gap.
 rm -f secrets/kafka.truststore.p12
-docker run --rm -v "$OUT_DIR:/certs" apache/kafka:3.9.0 keytool -importcert \
+# Run as the host user: the image's own user can't write into a directory the host created (CI runners).
+docker run --rm --user "$(id -u):$(id -g)" -v "$OUT_DIR:/certs" apache/kafka:3.9.0 keytool -importcert \
   -alias caroot -file /certs/ca.pem -keystore /certs/secrets/kafka.truststore.p12 \
   -storetype PKCS12 -storepass "$STOREPASS" -noprompt
 printf "%s" "$STOREPASS" > secrets/keystore_creds
 printf "%s" "$STOREPASS" > secrets/key_creds
 printf "%s" "$STOREPASS" > secrets/truststore_creds
+
+# Throwaway test material: let the broker container, which runs as another user, read it.
+chmod -R a+rX "$OUT_DIR"
 
 echo "Certs written to $OUT_DIR"
