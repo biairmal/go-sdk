@@ -68,4 +68,4 @@ Consumers unit-test against SDK interfaces. For each new **exported interface** 
 make check          # MUST pass: format → lint-fix → test-unit → coverage → vulncheck → deps-verify
 ```
 
-Then walk the [Definition of Done](../AGENTS.md#definition-of-done).
+Then walk the [Definition of Done](../CONTRIBUTING.md#definition-of-done).

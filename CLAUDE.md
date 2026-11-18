@@ -1,5 +1,8 @@
 # CLAUDE.md
 
-The development guidelines for this repository are maintained in a single, tool-agnostic file: **[AGENTS.md](./AGENTS.md)**.
+The guidelines for this repository live in [AGENTS.md](./AGENTS.md) (code rules) and
+[CONTRIBUTING.md](./CONTRIBUTING.md) (git conventions, PR, Definition of Done). Both are imported below so they are
+always loaded. This file holds no rules of its own so they never drift.
 
-**Read [AGENTS.md](./AGENTS.md) before making any change.** It is the source of truth for commands, the package map, authoring rules, and the Definition of Done. This file intentionally holds no rules of its own so the two never drift.
+@AGENTS.md
+@CONTRIBUTING.md

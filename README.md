@@ -1,90 +1,104 @@
 # go-sdk
 
-> 🚧 **Under development** — This package is under active development. APIs and behaviour may change.
+The shared infrastructure layer for Go services: configuration, structured errors, HTTP plumbing, logging, SQL and
+Redis access, authentication and permissions, observability, resilience, encryption, messaging and mail. It is a
+set of independent packages, so a service imports only what it uses. Public APIs use standard-library types
+(`http.Handler`, `*sql.DB`, `context.Context`), so any router or driver works.
 
-Shared Go SDK for the Guest Management ecosystem. Provides configuration loading, structured errors, HTTP utilities (handler adapter, middleware, response envelope, health/readiness), logging, generic repository patterns, and SQL connection management. Consumed by applications such as [guest-management-be](../guest-management-be); all public APIs use standard library types where possible (e.g. `http.Handler`, `*sql.DB`) for easy integration with any router or driver.
+[go-identity](https://github.com/biairmal/go-identity) and
+[go-service-template](https://github.com/biairmal/go-service-template) are built on it. New to the codebase? Start
+with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
----
+> The API is pre-1.0: a minor version (`v0.x.0`) may change exported APIs. Pin a version.
 
-## Overview
+## Install and use
 
-The SDK is a collection of libraries that handle cross-cutting concerns: config (Viper + .env + substitution), errors with codes and metadata ([errorz](lib/errorz/README.md)), HTTP middleware and response envelope ([httpkit](lib/httpkit/README.md)), structured logging ([logger](lib/logger/README.md)), generic repository and SQL helpers ([repository](lib/repository/README.md), [sqlkit](lib/sqlkit/README.md)). Use the sub-packages you need; there is no requirement to use all of them.
-
----
-
-## Features
-
-- **Configuration** — Load JSON/YAML into structs with Viper; optional `.env` loading and `${VAR}` substitution in config files. See [config/README.md](lib/config/README.md).
-- **Structured errors** — Error type with codes, source system, metadata, and sentinels; maps to HTTP status in httpkit. See [errorz/README.md](lib/errorz/README.md).
-- **HTTP utilities** — Handler adapter (`func(*http.Request) (any, error)` → `http.Handler`), Recover/RequestID/Logging middleware, response envelope, health and readiness handlers, thin client. See [httpkit/README.md](lib/httpkit/README.md).
-- **Logging** — Unified logger interface; Zerolog backend and no-op for tests; levels, structured fields, context extraction, file rotation. See [logger/README.md](lib/logger/README.md).
-- **Repository** — Generic repository interfaces and SQL implementation; filtering, pagination, sorting; optional caching; mock for tests. See [repository/README.md](lib/repository/README.md).
-- **SQL connection** — Leader/follower support, health checks, retry, transaction injection; driver-agnostic over `database/sql`. See [sqlkit/README.md](lib/sqlkit/README.md).
-
----
-
-## Prerequisites
-
-Before developing or depending on this package:
-
-| Requirement   | Purpose |
-| -------------- | ------- |
-| **Go 1.26+** | Build and test. Check with `go version`. |
-| **Make**       | Run format, lint, test, coverage, and tool installation. On Windows, use Git Bash, WSL, or [GnuWin32 Make](http://gnuwin32.sourceforge.net/packages/make.htm). |
-
-Optional (installed via `make install-tools` when needed):
-
-- **gofumpt** — Code formatter.
-- **golangci-lint** — Linter.
-- **govulncheck** — Vulnerability check for dependencies.
-
----
-
-## How to develop
-
-### First-time setup
-
-Install development tools (formatter, linter, vulnerability checker):
+Needs Go 1.26+.
 
 ```bash
-make install-tools
+go get github.com/biairmal/go-sdk@latest
 ```
 
-### Running checks (CI)
+A JSON endpoint with the standard error envelope, panic recovery and request logging:
 
-Run all checks before committing. Stops at the first failure (fail-fast):
+```go
+package main
+
+import (
+    "net/http"
+
+    "github.com/biairmal/go-sdk/lib/errorz"
+    "github.com/biairmal/go-sdk/lib/httpkit"
+    "github.com/biairmal/go-sdk/lib/httpkit/handler"
+    "github.com/biairmal/go-sdk/lib/httpkit/middleware"
+    "github.com/biairmal/go-sdk/lib/httpkit/response"
+    "github.com/biairmal/go-sdk/lib/logger"
+)
+
+func main() {
+    mux := http.NewServeMux()
+    mux.HandleFunc("/healthz", httpkit.Health())
+    mux.Handle("/notes/missing", handler.Handle(func(r *http.Request) (any, error) {
+        return nil, errorz.NotFound().WithMessage("note not found") // 404 with the error envelope
+    }))
+    mux.Handle("/ping", handler.Handle(func(r *http.Request) (any, error) {
+        return response.OK(map[string]string{"pong": "ok"}), nil
+    }))
+
+    h := middleware.Chain(mux, middleware.Recover(), middleware.Logging(logger.NewNoOp(), nil))
+    _ = http.ListenAndServe(":8080", h)
+}
+```
+
+Every package has its own README with usage, options and limitations. For a full service wired from these
+packages, start from [go-service-template](https://github.com/biairmal/go-service-template).
+
+## Packages
+
+All packages live under `lib/`. Each row links to that package's README.
+
+| Concern | Packages |
+|---|---|
+| Foundation | [errorz](lib/errorz/README.md) (structured errors), [logger](lib/logger/README.md), [config](lib/config/README.md) (YAML, `.env`, `${VAR}`), [ctxkit](lib/ctxkit/README.md) (request-scoped IDs), `common/dto` (paging DTOs) |
+| HTTP | [httpkit](lib/httpkit/README.md) (handler adapter, middleware, response envelope, health, client), [validator](lib/validator/README.md), [serializer](lib/serializer/README.md) |
+| Data | [sqlkit](lib/sqlkit/README.md) (leader/follower, transactions), [repository](lib/repository/README.md) (generic CRUD), `redis` (go-redis client) |
+| Security | [auth](lib/auth/README.md) (JWT validate and issue, JWKS, route policy), [authz](lib/authz/README.md) (permissions), [crypto](lib/crypto/README.md) (field encryption, blind index), [ratelimit](lib/ratelimit/README.md) |
+| Observability | [tracer](lib/tracer/README.md) (OpenTelemetry), [metrics](lib/metrics/README.md) (Prometheus) |
+| Resilience and lifecycle | [circuitbreaker](lib/circuitbreaker/README.md), [lifecycle](lib/lifecycle/README.md) (graceful shutdown) |
+| Messaging and mail | [kafka](lib/kafka/README.md), [queue](lib/queue/README.md) (publish and subscribe), [mailer](lib/mailer/README.md) (SMTP, templates) |
+
+**Mocks** for the exported interfaces are a separate module, so gomock never becomes a dependency of your build:
 
 ```bash
-make check
+go get github.com/biairmal/go-sdk/mocks@latest   # test dependency only; see mocks/README.md
 ```
 
-Or:
+How to test against the SDK (fakes first, then mocks, miniredis, sqlmock) is in [docs/TESTING.md](docs/TESTING.md).
+
+## Development
+
+You need Go 1.26+ and Make (on Windows, Git Bash or WSL).
 
 ```bash
-make ci
+make install-tools      # gofumpt, golangci-lint, govulncheck
+make check              # format, lint-fix, unit tests, coverage, vulncheck, deps-verify
+make test-integration   # Redis and Kafka tests; see CONTRIBUTING.md for the services they need
+make help               # every target
 ```
 
-This runs, in order: format, lint-fix, test-unit, coverage, vulncheck, deps-verify.
+| Path | Holds |
+|---|---|
+| `lib/` | The packages, one directory each, each with a README |
+| `mocks/` | Generated gomock mocks, a separate Go module |
+| `scripts/` | Makefile fragments and the Kafka test certificate script |
+| `docs/` | [Architecture](docs/ARCHITECTURE.md), [patterns](docs/PATTERNS.md), [testing](docs/TESTING.md), [new-package checklist](docs/NEW_PACKAGE_CHECKLIST.md), [package README template](docs/README_TEMPLATE.md), [development plan](docs/DEVELOPMENT_PLAN.md) |
 
-### Unit vs integration tests
+## Contributing
 
-- **Unit tests:** `make test` or `make test-unit` runs `go test -short ./...`. Use `testing.Short()` in tests to skip slow or integration-only code when running in short mode.
-- **Integration tests:** `make test-integration` runs `go test ./...` (no `-short`). Alternatively, use a build tag (e.g. `//go:build integration`) and `go test -tags=integration ./...`; document the chosen convention in test files or this README.
-- **Coverage:** `make coverage` writes `out/coverage.out` and `out/coverage.html`. Use `make coverage-view` to open the report (platform-dependent).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the git conventions, PR process and Definition of Done, and
+[AGENTS.md](AGENTS.md) for the code rules. Both apply to humans and AI agents alike.
 
-### Other targets
+## Security
 
-Run `make help` to see all targets and descriptions (formatter, linter, test, security, deps, build).
-
----
-
-## Documentation references
-
-| Document | Description |
-| -------- | ----------- |
-| [config/README.md](lib/config/README.md) | Config loader: Viper, .env, substitution, usage. |
-| [errorz/README.md](lib/errorz/README.md) | Structured errors, codes, sentinels, limitations. |
-| [httpkit/README.md](lib/httpkit/README.md) | Handler, middleware, response envelope, health/readiness, client. |
-| [logger/README.md](lib/logger/README.md) | Logger interface, Zerolog backend, no-op, rotation. |
-| [repository/README.md](lib/repository/README.md) | Repository interfaces, SQL implementation, mock, options. |
-| [sqlkit/README.md](lib/sqlkit/README.md) | DB connection, leader/follower, health, transactions. |
+Report vulnerabilities privately, never in a public issue. [SECURITY.md](SECURITY.md) has how to report and the
+rules for using the security packages safely.
