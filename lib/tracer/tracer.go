@@ -53,6 +53,8 @@ type Span interface {
 	SetAttributes(attrs map[string]any)
 	// SpanContext returns the span's trace/span identifiers.
 	SpanContext() SpanContext
+	// SetName replaces the span's name, e.g. once the route pattern is known.
+	SetName(name string)
 }
 
 // SpanContext carries a span's trace/span identifiers, mirroring the W3C

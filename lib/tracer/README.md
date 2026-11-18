@@ -69,6 +69,8 @@ handler := middleware.Chain(mux,
 
 Place `Tracing` after `RequestID`/`Correlation` and before `Logging` so the trace id is available to the request logger.
 
+The span is named `METHOD /raw/path`. To name it by route pattern (`GET /v1/notes/{id}`, low cardinality) and set `http.route`, pass `middleware.WithRouteFunc`. With chi, mount `Tracing` with `r.Use` and read `chi.RouteContext(r.Context()).RoutePattern()`. Every request span also carries `http.request.method`, `url.path` and `http.response.status_code`.
+
 ### Custom spans and attributes
 
 ```go

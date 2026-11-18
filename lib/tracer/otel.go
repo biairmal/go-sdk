@@ -186,3 +186,8 @@ func (s *otelSpan) SpanContext() SpanContext {
 		IsSampled: sc.IsSampled(),
 	}
 }
+
+// SetName replaces the span's name.
+func (s *otelSpan) SetName(name string) {
+	s.span.SetName(name)
+}

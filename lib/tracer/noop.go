@@ -27,3 +27,4 @@ func (noOpSpan) End()                           {}
 func (noOpSpan) SetError(_ error)               {}
 func (noOpSpan) SetAttributes(_ map[string]any) {}
 func (noOpSpan) SpanContext() SpanContext       { return SpanContext{} }
+func (noOpSpan) SetName(_ string)               {}
