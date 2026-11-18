@@ -45,7 +45,7 @@ func main() {
         return response.OK(map[string]string{"pong": "ok"}), nil
     }))
 
-    h := middleware.Chain(mux, middleware.Recover(), middleware.Logging(logger.NewNoOp(), nil))
+    h := middleware.Chain(mux, middleware.Recover(logger.NewNoOp()), middleware.Logging(logger.NewNoOp(), nil))
     _ = http.ListenAndServe(":8080", h)
 }
 ```

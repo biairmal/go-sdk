@@ -71,8 +71,6 @@ These are the consumer's job. The packages allow the unsafe setting because some
 
 ## Known limitations
 
-- **`middleware.Recover` doesn't log the panic.** The client gets a generic 500 and the panic value is
-  dropped. Log panics in your own middleware until `Recover` does.
 - **No key-rotation helper in `crypto`.** Rotating the encryption key means re-encrypting the data yourself.
 - **No token revocation in `auth`.** A valid JWT stays valid until `exp`. Keep access tokens short-lived.
 - **Pre-1.0 API.** Security fixes may come with breaking changes in a minor version.
