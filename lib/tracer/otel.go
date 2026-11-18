@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
@@ -26,6 +28,9 @@ type otelTracer struct {
 // YAML-able knobs; zero-valued fields fall back to DefaultConfig(). Opts
 // inject an optional logger.Logger for diagnostics.
 //
+// NewOTel also installs its TracerProvider and the W3C TraceContext propagator
+// as the OTel globals, so third-party OTel instrumentation joins the same traces.
+//
 // The returned Tracer owns the underlying exporter and TracerProvider;
 // callers must call Shutdown during graceful shutdown to flush buffered spans.
 func NewOTel(cfg Config, opts ...Option) (Tracer, error) {
@@ -38,12 +43,21 @@ func NewOTel(cfg Config, opts ...Option) (Tracer, error) {
 	if err != nil {
 		return nil, err
 	}
+	return newOTelTracer(cfg, exporter, opts...), nil
+}
 
+// newOTelTracer builds the tracer over exporter and installs the OTel globals. Tests pass an in-memory exporter.
+func newOTelTracer(cfg Config, exporter sdktrace.SpanExporter, opts ...Option) *otelTracer {
 	provider := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(newResource(cfg)),
 		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.SampleRate))),
 	)
+
+	// Global, so OTel instrumentation libraries (otelsql, tracesql) export through the same provider and
+	// read the same W3C context. The global provider delegates, so instrumentation created earlier still works.
+	otel.SetTracerProvider(provider)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
 
 	t := &otelTracer{
 		provider: provider,
@@ -54,7 +68,7 @@ func NewOTel(cfg Config, opts ...Option) (Tracer, error) {
 			opt(t)
 		}
 	}
-	return t, nil
+	return t
 }
 
 // newExporter builds the OTLP/gRPC span exporter for cfg.
