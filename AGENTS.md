@@ -29,6 +29,7 @@ A shared Go SDK (module `github.com/biairmal/go-sdk`, Go 1.26) — a collection 
 | `lib/serializer` | Thin wrappers around `encoding/json` (`ToJSON`, `ParseJSON`) |
 | `lib/validator` | `Validator` interface wrapping go-playground/validator/v10; struct-tag + single-value validation; `errorz` field errors |
 | `lib/tracer` | `Tracer`/`Span` interfaces; OTel OTLP/gRPC backend + `NoOp`; W3C propagation; server middleware (`httpkit/middleware.Tracing`) |
+| `lib/tracer/tracesql` | `WrapDriver`: `database/sql` driver wrapped with otelsql; statement spans with `db.query.text`, never arguments; no spans without a parent span |
 | `lib/auth` | `Validator`/`Claims`/`Issuer`; remote (mappable) + HS256/RS256/JWKS; config-driven route `Policy`; TTL cache; token issuing; server middleware (`httpkit/middleware.Auth`) |
 | `lib/authz` | `Authorizer` (`Can`/`Require`/`Permissions`/`RequireIn`); permissions from token claim, static role map, or identity role map (cached, stale-while-error); `*` and `prefix:*` grants; super admin claim; `ScopeResolver` for resource-scoped roles; server middleware (`httpkit/middleware.RequirePermission`) |
 | `lib/metrics` | `Recorder` interface; Prometheus backend + `NoOp`; dynamic metric registration; HTTP request count/duration/in-flight middleware (`httpkit/middleware.Metrics`) |

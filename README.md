@@ -65,7 +65,7 @@ All packages live under `lib/`. Each row links to that package's README.
 | HTTP | [httpkit](lib/httpkit/README.md) (handler adapter, middleware, response envelope, health, client), [validator](lib/validator/README.md), [serializer](lib/serializer/README.md) |
 | Data | [sqlkit](lib/sqlkit/README.md) (leader/follower, transactions), [repository](lib/repository/README.md) (generic CRUD), `redis` (go-redis client) |
 | Security | [auth](lib/auth/README.md) (JWT validate and issue, JWKS, route policy), [authz](lib/authz/README.md) (permissions), [crypto](lib/crypto/README.md) (field encryption, blind index), [ratelimit](lib/ratelimit/README.md) |
-| Observability | [tracer](lib/tracer/README.md) (OpenTelemetry), [metrics](lib/metrics/README.md) (Prometheus) |
+| Observability | [tracer](lib/tracer/README.md) (OpenTelemetry), [tracesql](lib/tracer/tracesql/README.md) (traced SQL driver), [metrics](lib/metrics/README.md) (Prometheus) |
 | Resilience and lifecycle | [circuitbreaker](lib/circuitbreaker/README.md), [lifecycle](lib/lifecycle/README.md) (graceful shutdown) |
 | Messaging and mail | [kafka](lib/kafka/README.md), [queue](lib/queue/README.md) (publish and subscribe), [mailer](lib/mailer/README.md) (SMTP, templates) |
 
