@@ -16,6 +16,7 @@ Success and error use the same envelope shape:
 
 - **Success**: `BaseResponse` with `Data` set, `Error` nil, `Code` "OK", `Message` "success", and `Timestamp`.
 - **Error**: `BaseResponse` with `Error` set to `ErrorPayload` (code, message, source_system, meta), `Data` nil, and `Code` "ERROR".
+- **Trace id**: both shapes carry `trace_id` when `middleware.Tracing` ran with a real tracer; the writers copy it from the `X-Trace-Id` response header, so middleware-written errors (401, 429, panics) carry it too.
 
 ## Handler usage
 

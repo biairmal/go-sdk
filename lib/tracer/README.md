@@ -12,6 +12,7 @@ Services need to see how a request flows across process boundaries — which dow
 - **OTLP/gRPC export**: `NewOTel` ships spans to any OTLP-compatible collector (Tempo, Jaeger, an OTel Collector).
 - **W3C propagation**: `httpkit/middleware.Tracing` extracts/joins the caller's trace via the standard `traceparent` header.
 - **`ctxkit` integration**: every started span's trace id is published via `ctxkit.WithTraceID`, so it shows up in logs automatically.
+- **Trace id in responses**: `middleware.Tracing` sets the `X-Trace-Id` response header (`middleware.TraceIDHeader`), and the `httpkit/handler` writers copy it into the envelope's `trace_id`, so a client or a bug report can jump straight to the trace. Neither appears when the tracer gives no id (`NoOp`). Browsers can read the header only if your CORS config lists it in `Access-Control-Expose-Headers`.
 - **`NoOp` backend**: `NewNoOp()` discards everything — use it in tests or to disable tracing without branching call sites.
 - **Span kinds & attributes**: `WithSpanKind` and `WithAttributes` mirror OTel's span-kind taxonomy and key-value attributes without leaking OTel types.
 

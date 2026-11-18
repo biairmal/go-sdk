@@ -14,10 +14,12 @@ import (
 
 // BaseResponse is the base response struct for all API responses.
 // Use Data for success and Error for error responses; keep the other field nil/zero.
+// TraceID is the request's trace id, set by the handler writers from the TraceIDHeader response header.
 type BaseResponse[T any] struct {
 	Code      string    `json:"code,omitempty"`
 	Message   string    `json:"message,omitempty"`
 	Timestamp time.Time `json:"timestamp"`
+	TraceID   string    `json:"trace_id,omitempty"`
 	Data      T         `json:"data,omitempty"`
 	Error     any       `json:"error,omitempty"`
 }
@@ -54,6 +56,10 @@ func ErrorFromErr(err error) ErrorPayload {
 		Message: internalMessage,
 	}
 }
+
+// TraceIDHeader is the response header carrying the request's trace id. middleware.Tracing sets it, and
+// the handler writers copy it into BaseResponse.TraceID, so every envelope matches its header.
+const TraceIDHeader = "X-Trace-Id"
 
 const internalMessage = "internal server error"
 
