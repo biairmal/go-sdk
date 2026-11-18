@@ -44,7 +44,7 @@ h := handler.Handle(func(r *http.Request) (any, error) {
 
 Apply middlewares so that the first in the list is the outermost (runs first on request, last on response). Recommended order: **Recover**, then **RequestID** (optional), then **Logging**.
 
-- **Recover**: Catches panics and writes a 500 response with the error envelope.
+- **Recover**: `Recover(log)` catches panics, logs the panic value and stack at error level (nil `log` disables this), and writes a generic 500 error envelope. The panic value never reaches the client.
 - **RequestID**: Injects or reads `X-Request-Id`, puts it in context; use `middleware.RequestIDKey` with your logger’s ContextExtractor.
 - **Logging**: Logs request and/or response (path, IP, method, status, duration, optional body). Use `Logging(log, opts)`; if `opts` is nil, request and response with body are logged. Set `LoggingOptions.LogRequest`, `LogResponse`, `LogRequestBody`, `LogResponseBody`, and `MaxBodyBytesForLogging` to tune.
 - **RequirePermission / RequireAny**: Per-route permission checks over an [authz](../authz/README.md) `Authorizer`. Place them inside `Auth` (they read its claims): 401 without claims, 403 without the permission. Mount per route, e.g. `mux.Handle("POST /v1/notes", middleware.RequirePermission(az, "notes:write")(createNote))`.
@@ -78,7 +78,7 @@ mux.Handle("/api/ping", handler.Handle(func(r *http.Request) (any, error) {
 
 log := logger.NewZerolog(&logger.Options{...})
 h := middleware.Chain(mux,
-    middleware.Recover(),
+    middleware.Recover(log),
     middleware.Logging(log, nil),
 )
 server := &http.Server{Handler: h}
@@ -97,7 +97,7 @@ import (
 )
 
 r := chi.NewRouter()
-r.Use(middleware.Recover(), middleware.Logging(log, nil))
+r.Use(middleware.Recover(log), middleware.Logging(log, nil))
 r.Get("/health", httpkit.Health())
 r.Get("/ready", httpkit.Readiness(nil))
 r.Get("/api/ping", handler.Handle(func(r *http.Request) (any, error) {

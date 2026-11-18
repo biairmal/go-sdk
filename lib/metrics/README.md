@@ -55,7 +55,7 @@ func main() {
 ```go
 handler := middleware.Chain(mux,
     middleware.Metrics(rec, nil), // outermost: counts every request, incl. panics
-    middleware.Recover(),
+    middleware.Recover(log),
     middleware.RequestID(),
     middleware.Logging(log, nil),
 )
