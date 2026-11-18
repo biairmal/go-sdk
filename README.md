@@ -1,5 +1,7 @@
 # go-sdk
 
+[![CI](https://github.com/biairmal/go-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/biairmal/go-sdk/actions/workflows/ci.yml)
+
 The shared infrastructure layer for Go services: configuration, structured errors, HTTP plumbing, logging, SQL and
 Redis access, authentication and permissions, observability, resilience, encryption, messaging and mail. It is a
 set of independent packages, so a service imports only what it uses. Public APIs use standard-library types

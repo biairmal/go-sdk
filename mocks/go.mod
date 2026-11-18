@@ -3,7 +3,7 @@ module github.com/biairmal/go-sdk/mocks
 go 1.26.0
 
 require (
-	github.com/biairmal/go-sdk v0.2.0
+	github.com/biairmal/go-sdk v0.4.0
 	go.uber.org/mock v0.6.0
 )
 
