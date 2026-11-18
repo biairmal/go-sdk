@@ -36,6 +36,7 @@ Only the latest `v0.x` tag gets fixes. The API is pre-1.0, so upgrade to the new
 | `authz` | No claims means 401, and a missing permission means 403. The `identity` source serves a stale role map for at most 10 × `cache_ttl` while identity is unreachable, then fails with 503 instead of granting. Wildcards apply to grants, never to the permission being checked |
 | `crypto` | AES-256-GCM with a random nonce for every value. The encryption key must decode to exactly 32 bytes, and the blind-index key to at least 16 |
 | `mailer` | Every message is validated before sending: required fields, address syntax (`net/mail`), and CR or LF in the subject (header injection) are refused |
+| `httpkit` | An error response never carries an error's own text. A plain error, an `errorz` error without a message, and a recovered panic all answer `internal server error`. Only an `errorz` message reaches the client |
 | `ratelimit` | The Redis backend counts with an atomic Lua script, so concurrent pods can't double-spend a budget |
 | `logger`, all | Libraries return errors and never log on their own, so they never write secrets you didn't log yourself |
 
@@ -60,9 +61,9 @@ These are the consumer's job. The packages allow the unsafe setting because some
   `WithFailClosed()` where letting requests through is worse than refusing them, and pair a fail-open limit with a
   per-account lockout for sign-in.
 - **`ratelimit`: use the Redis backend when more than one instance runs.** The in-memory backend counts per process.
-- **`httpkit`: return `errorz` errors with a message from handlers.** The envelope's `message` is the error's own
-  text when it has no `errorz` message, so a raw driver or library error reaches the client verbatim. Wrap causes
-  with `errorz.Wrap(err).WithCode(...).WithMessage("...")`.
+- **`httpkit`: return `errorz` errors with a message from handlers.** Anything else reaches the client as
+  `internal server error`. Wrap causes with `errorz.Wrap(err).WithCode(...).WithMessage("...")`, and keep the
+  message free of internal detail.
 - **`httpkit/middleware.Logging`: leave `LogRequestBody` and `LogResponseBody` off** for any route that carries
   passwords, tokens or personal data.
 - **`sqlkit`: set `ssl_mode` to `require` or stricter** when the database is on another host.
@@ -70,9 +71,8 @@ These are the consumer's job. The packages allow the unsafe setting because some
 
 ## Known limitations
 
-- **Error text can reach the client.** `httpkit` writes the text of a non-`errorz` error, of an `errorz` error
-  without a message, or of a recovered panic value into the response `message`. That can expose SQL errors, file
-  paths or internal names. Until the envelope hides them, follow the `httpkit` rule above.
+- **`middleware.Recover` doesn't log the panic.** The client gets a generic 500 and the panic value is
+  dropped. Log panics in your own middleware until `Recover` does.
 - **No key-rotation helper in `crypto`.** Rotating the encryption key means re-encrypting the data yourself.
 - **No token revocation in `auth`.** A valid JWT stays valid until `exp`. Keep access tokens short-lived.
 - **Pre-1.0 API.** Security fixes may come with breaking changes in a minor version.
