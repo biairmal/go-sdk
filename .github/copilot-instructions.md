@@ -1,5 +1,6 @@
 # GitHub Copilot instructions
 
-The development guidelines for this repository are maintained in a single, tool-agnostic file: **[../AGENTS.md](../AGENTS.md)**.
+The guidelines for this repository live in two tool-agnostic files: **[../AGENTS.md](../AGENTS.md)** (code rules) and
+**[../CONTRIBUTING.md](../CONTRIBUTING.md)** (git conventions, PR body, Definition of Done).
 
-Read `AGENTS.md` before suggesting or making changes. It is the source of truth for commands, the package map, authoring rules, and the Definition of Done. This file intentionally holds no rules of its own so the two never drift.
+Read both before suggesting or making changes. This file intentionally holds no rules of its own so they never drift.

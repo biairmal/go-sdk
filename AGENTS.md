@@ -1,10 +1,10 @@
 # AGENTS.md
 
-**Canonical development guidelines for `github.com/biairmal/go-sdk`.**
+**Before any change, read [CONTRIBUTING.md](CONTRIBUTING.md)** for the git conventions, PR body and Definition of
+Done. This file holds the code rules for `github.com/biairmal/go-sdk`, for humans and AI agents alike. Treat the
+[Authoring rules](#authoring-rules) as hard requirements.
 
-This is the single source of truth for how code in this repository must be written — by humans and by AI assistants alike. It is read automatically by AGENTS.md-aware tools (Cursor, Zed, Aider, GitHub Copilot coding agent, Claude Code via [CLAUDE.md](./CLAUDE.md)). If you are an AI agent: **read this file before making any change**, and treat the [Authoring rules](#authoring-rules) and [Definition of Done](#definition-of-done) as hard requirements.
-
-For deeper reference: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/PATTERNS.md](docs/PATTERNS.md) · [docs/NEW_PACKAGE_CHECKLIST.md](docs/NEW_PACKAGE_CHECKLIST.md) · human onboarding in [CONTRIBUTING.md](CONTRIBUTING.md).
+For deeper reference: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/PATTERNS.md](docs/PATTERNS.md) · [docs/NEW_PACKAGE_CHECKLIST.md](docs/NEW_PACKAGE_CHECKLIST.md).
 
 ---
 
@@ -141,28 +141,7 @@ Configuration is **struct-first, YAML-first** so a consuming microservice can em
 
 ---
 
-## Git conventions
-
-Checked on every PR by `.github/workflows/pr-conventions.yml`. PRs are squash-merged, so the PR title becomes the commit on `main`.
-
-- **Branch:** `<type>/<group>/<task-id>-<slug>`. `<group>` is optional and names the work stream, so parallel streams don't collide. The task ID keeps the plan's casing. Examples: `feat/p2/T10.3-audit-target`, `fix/deps/klauspost-cve`.
-- **Commit and PR title:** [Conventional Commits](https://www.conventionalcommits.org/), `<type>(<scope>)?: <what it does, lower case>`, plus ` (<task id>)` on the PR title. Types: `feat fix refactor perf test docs build ci chore revert`. A breaking change adds `!` and a `BREAKING CHANGE:` footer. The commit body says why, not how.
-- **PR body:** fill in `.github/pull_request_template.md`. `### Why` (requirement, bug, security, or refactor, with its source), `### What changed` and `### Verification` are required. Verification quotes each command's real output from the final pushed head, keeps failed or skipped checks in the table, and lists what was not verified.
-
-## Definition of Done
-
-A change is **not complete** until every box is checked:
-
-- [ ] `make check` passes (format, lint-fix, unit tests, coverage, vulncheck, deps-verify).
-- [ ] New/changed behaviour has **table-driven tests**; live-service paths covered by `*_integration_test.go`.
-- [ ] Touched/new package has an up-to-date **package doc comment and `README.md`**.
-- [ ] Errors use `errorz` with an appropriate code and **wrap the underlying cause** (`errors.Is`-friendly).
-- [ ] Any `logger.Logger` use is **optional and nil-safe**; no stdlib `log`.
-- [ ] No new **unjustified cross-package imports**.
-- [ ] If a package was added, the [package map](#package-map) row exists.
-- [ ] Public API uses stdlib types; constructors are `NewX`; options are `WithX`.
-- [ ] Any configuration is an exported `Config` struct with **`mapstructure` snake_case tags** (non-serializable fields tagged `-`), a `DefaultConfig()`, and a `Validate()`; `WithX` is used only for optional deps / non-serializable behavior.
-- [ ] Every new exported interface has a **`//go:generate mockgen` directive** writing into `mocks/<pkg>/`; `make mocks` was run and the generated files committed.
+Git conventions and the Definition of Done are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -175,4 +154,5 @@ A change is **not complete** until every box is checked:
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layering model, error-layer separation, dependency direction |
 | [docs/PATTERNS.md](docs/PATTERNS.md) | Copy-paste templates: options, sentinel errors, table-driven tests, context, leader/follower |
 | [docs/NEW_PACKAGE_CHECKLIST.md](docs/NEW_PACKAGE_CHECKLIST.md) | Step-by-step for adding a sub-package |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Human setup, dev loop, PR expectations |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, git conventions, PR body, Definition of Done |
+| [SECURITY.md](SECURITY.md) | Reporting a vulnerability, safe-use rules for consumers |
