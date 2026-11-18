@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -19,6 +20,9 @@ func TestRecover(t *testing.T) {
 	}
 	if w.Header().Get("Content-Type") != "application/json" {
 		t.Errorf("Content-Type = %v", w.Header().Get("Content-Type"))
+	}
+	if strings.Contains(w.Body.String(), "test panic") {
+		t.Errorf("body leaks the panic value: %s", w.Body.String())
 	}
 }
 
