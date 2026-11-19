@@ -511,7 +511,7 @@ type DBConfig struct {
     Database       string        // Database name
     Username       string        // Database username
     Password       string        // Database password
-    SSLMode        string        // SSL mode: "disable", "require", "verify-ca", "verify-full" (postgres)
+    SSLMode        string        // SSL mode: "", "disable", "allow", "prefer", "require", "verify-ca", "verify-full"
     ConnectTimeout time.Duration // Connection timeout (default: 5s)
     MaxRetries     int           // Maximum connection retry attempts (default: 3)
 }
@@ -519,11 +519,11 @@ type DBConfig struct {
 
 **DSN Generation**: The `DSN()` method generates database-specific connection strings:
 
-- **PostgreSQL**: `host=%s port=%d user=%s password=%s dbname=%s sslmode=%s connect_timeout=%d`
-- **MySQL**: `%s:%s@tcp(%s:%d)/%s?parseTime=true&timeout=%s`
+- **PostgreSQL**: `host=%s port=%d user=%s password=%s dbname=%s sslmode=%s connect_timeout=%d`, with every text value single-quoted, with backslash and single quote backslash-escaped (libpq rules, read the same way by lib/pq and pgx). `sslmode` is left out when `ssl_mode` is empty, so the driver default applies.
+- **MySQL**: `%s:%s@tcp(%s:%d)/%s?parseTime=true&timeout=%s`, plus `&tls=` from `ssl_mode`: `disable` → `false`, `allow`/`prefer` → `preferred`, `require` → `skip-verify` (encrypted, certificate not checked), `verify-ca`/`verify-full` → `true`. Empty leaves the driver default (no TLS).
 - **SQLite3**: `file:%s?mode=rwc&cache=shared&_busy_timeout=%d`
 
-Passwords are automatically URL-encoded to handle special characters.
+Passwords are written as the driver reads them and are **not** URL-encoded (neither driver decodes them). `Validate()` rejects an `ssl_mode` that is not empty, `disable`, `allow`, `prefer`, `require`, `verify-ca` or `verify-full`, for the leader and every follower.
 
 ### PoolConfig
 
@@ -716,7 +716,7 @@ db := sqlx.NewDb(sqlkitDB.Leader(), "postgres")
 
 ## Security Considerations
 
-1. **Credentials**: Passwords are automatically URL-encoded in DSN generation. Never log passwords.
+1. **Credentials**: Passwords are quoted for the driver in DSN generation (see DSN Generation). Never log passwords.
 
 2. **SSL/TLS**: Always use SSL in production. Set `SSLMode` to "require" or "verify-full" for PostgreSQL.
 
