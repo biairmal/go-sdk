@@ -21,6 +21,7 @@ func WriteSuccessResponse(w http.ResponseWriter, statusCode int, data any) {
 		Code:      "OK",
 		Message:   "success",
 		Timestamp: time.Now(),
+		TraceID:   w.Header().Get(response.TraceIDHeader),
 		Data:      data,
 	})
 }
@@ -33,6 +34,7 @@ func WriteErrorResponse(w http.ResponseWriter, statusCode int, err any) {
 		Code:      "ERROR",
 		Message:   payload.Message,
 		Timestamp: time.Now(),
+		TraceID:   w.Header().Get(response.TraceIDHeader),
 		Error:     payload,
 	})
 }

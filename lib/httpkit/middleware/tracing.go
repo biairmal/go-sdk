@@ -7,6 +7,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 
 	"github.com/biairmal/go-sdk/lib/ctxkit"
+	"github.com/biairmal/go-sdk/lib/httpkit/response"
 	"github.com/biairmal/go-sdk/lib/tracer"
 )
 
@@ -14,10 +15,15 @@ import (
 // It is stateless, so a single instance is safe to share across requests.
 var tracePropagator = propagation.TraceContext{}
 
+// TraceIDHeader is the response header Tracing sets to the request's trace id.
+const TraceIDHeader = response.TraceIDHeader
+
 // Tracing returns a middleware that starts a server span for each request. It
 // extracts any inbound W3C trace context (traceparent/tracestate header) so
 // the span joins the caller's trace, and publishes the resulting trace id via
-// ctxkit.WithTraceID so it appears on every log line for this request.
+// ctxkit.WithTraceID so it appears on every log line for this request, and sets
+// it as the TraceIDHeader response header (omitted when the tracer gives no id,
+// as the NoOp tracer does) so a client can look the trace up.
 //
 // On a 5xx response the span is marked as failed. Place Tracing after
 // RequestID/Correlation and before Logging in the chain so the trace id is
@@ -31,7 +37,11 @@ func Tracing(t tracer.Tracer) func(http.Handler) http.Handler {
 			ctx, span := t.Start(ctx, method+" "+path, tracer.WithSpanKind(tracer.SpanKindServer))
 			defer span.End()
 
-			ctx = ctxkit.WithTraceID(ctx, span.SpanContext().TraceID)
+			traceID := span.SpanContext().TraceID
+			ctx = ctxkit.WithTraceID(ctx, traceID)
+			if traceID != "" {
+				w.Header().Set(TraceIDHeader, traceID)
+			}
 
 			capture := &responseCapture{ResponseWriter: w, status: http.StatusOK}
 			next.ServeHTTP(capture, r.WithContext(ctx))
