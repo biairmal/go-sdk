@@ -20,7 +20,7 @@ fix it.
 
 ## P0 — security
 
-### [ ] TD-01 SQL filter and sort fields can be injected
+### [x] TD-01 SQL filter and sort fields can be injected
 - **Where:** [helpers.go:157-164](../lib/repository/sql/helpers.go) (`SanitizeColumnName`), `BuildWhereClause`, `BuildOrderByClause`
 - **Problem:** The guard is a deny-list (`' ; " \ ( ) [ ] { }`). Spaces, `=`, `*`, `-` pass. Field `1=1 OR id` gives
   `WHERE tenant_id = $1 AND 1=1 OR id = $2`, which skips the tenant filter. `UNION SELECT *` is probably possible.
@@ -29,7 +29,7 @@ fix it.
   Delete `SanitizeColumnName`.
 - **Done when:** a test with field `1=1 OR id` returns an error, and a test with a real column still works.
 
-### [ ] TD-02 Bodies are logged by default, with no size limit
+### [x] TD-02 Bodies are logged by default, with no size limit
 - **Where:** [logging.go:29-36](../lib/httpkit/middleware/logging.go), [logging.go:70-80](../lib/httpkit/middleware/logging.go)
 - **Problem:** `opts == nil` logs every request and response body (passwords, tokens). `io.ReadAll` reads the whole
   request body, and `MaxBodyBytesForLogging` defaults to 0 (no limit). `SECURITY.md` says to leave this off.
@@ -37,14 +37,14 @@ fix it.
   (and restore the rest of the body).
 - **Done when:** default options log no body, and a 10 MB body does not allocate 10 MB for logging.
 
-### [ ] TD-03 Route policy fails open when `default_protected` is missing
+### [x] TD-03 Route policy fails open when `default_protected` is missing
 - **Where:** [policy.go:20-26](../lib/auth/policy.go), [config.go:196-208](../lib/auth/config.go)
 - **Problem:** Zero value is `DefaultProtected: false`. `auth.Policy{Rules: ...}` or YAML without the key makes every
   unmatched route public. `withDefaults` cannot tell "unset" from "false".
 - **Fix:** Invert to `default_public` (zero value = protected), or make the key required in `Validate`.
 - **Done when:** an empty `Policy{}` protects every route, with a test.
 
-### [ ] TD-04 Client IP can be faked, and has the port when there is no proxy
+### [x] TD-04 Client IP can be faked, and has the port when there is no proxy
 - **Where:** [logging.go:121-132](../lib/httpkit/middleware/logging.go) (`clientIP`), used by `KeyByIP`, `KeyByUser`, `KeyByHeader`
 - **Problem:** Trusts `X-Forwarded-For` / `X-Real-IP` from anyone, so a fake IP per request gets a fresh rate-limit
   bucket. Without a proxy it returns `RemoteAddr` (`ip:port`), so each new connection gets its own bucket.
@@ -52,7 +52,7 @@ fix it.
   trusted-proxy list.
 - **Done when:** tests cover: spoofed header ignored, header honoured from a trusted proxy, port stripped.
 
-### [ ] TD-05 DB passwords with special characters fail, and MySQL ignores `ssl_mode`
+### [x] TD-05 DB passwords with special characters fail, and MySQL ignores `ssl_mode`
 - **Where:** [config.go:50-88](../lib/sqlkit/config.go) (`DBConfig.DSN`)
 - **Problem:** `url.QueryEscape` on the password, but the Postgres key=value DSN and the MySQL DSN take it literally.
   `p@ss word` is sent as `p%40ss+word`. The MySQL DSN has no TLS option, so `ssl_mode` is silently ignored.
