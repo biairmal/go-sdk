@@ -43,7 +43,7 @@ func Tracing(t tracer.Tracer, opts ...TracingOption) func(http.Handler) http.Han
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := tracePropagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
 
-			path, _, method := requestMeta(r)
+			path, method := requestPath(r), r.Method
 			ctx, span := t.Start(ctx, method+" "+path, tracer.WithSpanKind(tracer.SpanKindServer))
 			defer span.End()
 
