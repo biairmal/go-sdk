@@ -66,6 +66,10 @@ These are the consumer's job. The packages allow the unsafe setting because some
   message free of internal detail.
 - **`httpkit/middleware.Logging`: leave `LogRequestBody` and `LogResponseBody` off** for any route that carries
   passwords, tokens or personal data.
+- **`tracer/tracesql`: bind values as arguments, never format them into the SQL.** Spans record the statement
+  text (`db.query.text`) but not arguments, so a value inlined into the query string reaches the trace backend.
+- **`tracer.Transport`: name spans by route pattern.** A `WithSpanName` built from the raw path puts ids (and
+  anything else in the path) into span names.
 - **`sqlkit`: set `ssl_mode` to `require` or stricter** when the database is on another host.
 - **`config`: keep secrets in the environment, not in committed YAML.** Reference them as `${VAR}`.
 
