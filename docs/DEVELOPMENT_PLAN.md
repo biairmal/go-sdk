@@ -289,7 +289,7 @@ RWMutex, TTL/kid refresh), `auth/policy.go` (`Policy`, `Rule`, `IsProtected`, `m
 
 `Claims`: `Subject()`, `Roles()`, `Get(key)(any,bool)`, `Raw()`. `Issue` sets `sub/iss/aud/iat/exp` + caller
 claims, signs with golang-jwt. Refresh tokens out of scope for v1. `matchPattern`: split by `/`, `*` = one
-segment, `**` = zero+ segments, first matching rule wins → `Public`, else `DefaultProtected`. Token errors map
+segment, `**` = zero+ segments, first matching rule wins → `Public`, else protected unless `DefaultPublic`. Token errors map
 through existing `StatusCodeFromError`. Middleware: skip when policy says public, else bearer token →
 `Unauthorized()` 401 on missing, `Validate`, `injectClaims` on success.
 

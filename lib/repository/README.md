@@ -242,7 +242,7 @@ Built-in types: `sql.Postgres{}`, `sql.MySQL{}`, `sql.Oracle{}`. Default dialect
 
 ### Filter Operators (SQL)
 
-The SQL implementation builds `WHERE` clauses from `repository.Filter`. Column names in conditions are sanitised (unsafe characters rejected). Supported operators:
+The SQL implementation builds `WHERE` clauses from `repository.Filter`. Column names must be plain identifiers (`name` or `table.name`); `SQLRepository.List` and `Count` also reject, with a bad-request error, any field that is not a `db`-tagged column of the entity. Supported operators:
 
 - **eq**, **ne**, **gt**, **gte**, **lt**, **lte**, **like** – use `Value`.
 - **in** – use `Values` (slice).
@@ -355,7 +355,7 @@ err := db.WithTransaction(ctx, func(txCtx context.Context) error {
 
 ## Security Considerations
 
-1. **Parameterised queries**: The SQL implementation uses placeholders only; filter values are passed as arguments. Do not interpolate user input into table or column names.
+2. **Column names**: Filter and sort field names are checked, not escaped. `SanitizeColumnName` accepts only `identifier` or `table.identifier`, and `SQLRepository` additionally accepts only the entity's own `db` columns (anything else returns `errorz.ErrBadRequest`). If you call `BuildWhereClause` or `BuildOrderByClause` yourself, an invalid field is dropped silently, so validate fields first.
 2. **Column names**: Filter/sort column names are sanitised (dangerous characters rejected). Prefer whitelisting column names in higher layers where possible.
 3. **Authorization**: Repositories perform data access only; enforce authorization in the service or API layer.
 

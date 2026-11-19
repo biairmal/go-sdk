@@ -49,7 +49,9 @@ These are the consumer's job. The packages allow the unsafe setting because some
   issued for another service is accepted.
 - **`auth`: use RS256 with JWKS across services.** HS256 shares one secret between the issuer and every validator,
   so any validator can mint tokens. Keep HS256 to a single process.
-- **`auth`: keep `Policy` default-protected.** List public routes explicitly instead of listing protected ones.
+- **`auth`: keep unmatched routes protected (the default).** List public routes explicitly instead of listing protected
+  ones. A missing `default_protected` key and a zero `auth.Policy{}` both protect every route no rule matches; only an
+  explicit `default_protected: false` (or `Policy{DefaultPublic: true}`) opens them.
 - **`authz`: never use `NewNoOp()` outside tests and local development.** It allows every check.
 - **`authz`: scope data by the token's tenant.** Use `authz.TenantID(ctx)` in every query on tenant-owned rows, never
   a tenant ID from the request.
@@ -61,16 +63,20 @@ These are the consumer's job. The packages allow the unsafe setting because some
   `WithFailClosed()` where letting requests through is worse than refusing them, and pair a fail-open limit with a
   per-account lockout for sign-in.
 - **`ratelimit`: use the Redis backend when more than one instance runs.** The in-memory backend counts per process.
+- **`httpkit/middleware`: behind a proxy, build an `IPResolver` with your proxy ranges.** `KeyByIP` and the logged `ip`
+  use the TCP peer address and ignore `X-Forwarded-For`, because a client can forge it. Without a resolver, every
+  client behind one load balancer shares one rate-limit key.
 - **`httpkit`: return `errorz` errors with a message from handlers.** Anything else reaches the client as
   `internal server error`. Wrap causes with `errorz.Wrap(err).WithCode(...).WithMessage("...")`, and keep the
   message free of internal detail.
-- **`httpkit/middleware.Logging`: leave `LogRequestBody` and `LogResponseBody` off** for any route that carries
+- **`httpkit/middleware.Logging`: keep `LogRequestBody` and `LogResponseBody` off (the default)** for any route that carries
   passwords, tokens or personal data.
 - **`tracer/tracesql`: bind values as arguments, never format them into the SQL.** Spans record the statement
   text (`db.query.text`) but not arguments, so a value inlined into the query string reaches the trace backend.
 - **`tracer.Transport`: name spans by route pattern.** A `WithSpanName` built from the raw path puts ids (and
   anything else in the path) into span names.
-- **`sqlkit`: set `ssl_mode` to `require` or stricter** when the database is on another host.
+- **`sqlkit`: set `ssl_mode` to `require` or stricter** when the database is on another host. An empty `ssl_mode` uses the
+  driver default, which for MySQL is no TLS. `ssl_mode` now also applies to MySQL (as the driver's `tls` setting).
 - **`config`: keep secrets in the environment, not in committed YAML.** Reference them as `${VAR}`.
 
 ## Known limitations

@@ -59,6 +59,5 @@ func recordHTTPMetrics(rec metrics.Recorder, method, path string, capture *respo
 
 // rawPath is the default PathNormalizer: the request's URL path, unmodified.
 func rawPath(r *http.Request) string {
-	path, _, _ := requestMeta(r)
-	return path
+	return requestPath(r)
 }

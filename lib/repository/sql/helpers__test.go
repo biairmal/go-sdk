@@ -73,3 +73,57 @@ func TestPaginationClause_NoPlaceholderCollisionWithWhere(t *testing.T) {
 		t.Errorf("query %q references %d distinct placeholders, want %d (matching total args)", query, len(seen), wantArgs)
 	}
 }
+
+func TestSanitizeColumnName(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "plain", in: "email", want: "email"},
+		{name: "underscore and digits", in: "created_at2", want: "created_at2"},
+		{name: "table qualified", in: "n.owner_id", want: "n.owner_id"},
+		{name: "trimmed", in: "  email ", want: "email"},
+		{name: "boolean bypass", in: "1=1 OR id", want: ""},
+		{name: "or clause", in: "id OR name", want: ""},
+		{name: "union", in: "x UNION SELECT *", want: ""},
+		{name: "comment", in: "id--", want: ""},
+		{name: "block comment", in: "id/*", want: ""},
+		{name: "semicolon", in: "id;DROP TABLE t", want: ""},
+		{name: "quote", in: `id"`, want: ""},
+		{name: "parens", in: "lower(email)", want: ""},
+		{name: "leading dot", in: ".id", want: ""},
+		{name: "two dots", in: "a.b.c", want: ""},
+		{name: "starts with digit", in: "1id", want: ""},
+		{name: "empty", in: "", want: ""},
+		{name: "star", in: "*", want: ""},
+		{name: "newline", in: "id\nOR 1=1", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SanitizeColumnName(tt.in); got != tt.want {
+				t.Errorf("SanitizeColumnName(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+// A tenant filter ANDed with a hostile field must never let the hostile text into the SQL.
+func TestBuildWhereAndOrderBy_DropInjectedFields(t *testing.T) {
+	filter := repository.Filter{Conditions: []repository.FilterCondition{
+		{Field: "tenant_id", Operator: repository.FilterOperatorEq, Value: "t1"},
+		{Field: "1=1 OR id", Operator: repository.FilterOperatorEq, Value: "x"},
+	}}
+	where, args := BuildWhereClause(Postgres{}, filter)
+	if strings.Contains(where, "1=1") || strings.Contains(where, " OR ") {
+		t.Errorf("where = %q, want the hostile field left out", where)
+	}
+	if len(args) != 1 {
+		t.Errorf("len(args) = %d, want 1 (only the tenant condition)", len(args))
+	}
+
+	order := BuildOrderByClause([]repository.Sort{{Field: "name, (select 1)"}, {Field: "x UNION SELECT *"}})
+	if order != "" {
+		t.Errorf("order = %q, want empty", order)
+	}
+}

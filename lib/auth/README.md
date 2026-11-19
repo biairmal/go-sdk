@@ -72,6 +72,8 @@ rules:
   - method: POST
     pattern: /api/v1/auth/login
     public: true
+
+Rules are checked in order; the first match decides. A request no rule matches is **protected**, also when `default_protected` is missing: only an explicit `default_protected: false` makes unmatched routes public. In Go, `auth.Policy{}` is protected too; set `DefaultPublic: true` for the opposite. `Config.DefaultProtected` is a `*bool` so the config can tell "missing" from "false".
 ```
 
 ### Monolith → microservices transition

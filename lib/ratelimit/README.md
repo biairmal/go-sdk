@@ -76,7 +76,7 @@ handler := middleware.Chain(mux,
 )
 ```
 
-Place `RateLimit` before `Auth` when keying by IP (protects the auth check itself from being hammered); use `KeyByUser` after `Auth` instead when you want per-authenticated-user quotas. See [httpkit/README.md](../httpkit/README.md) for the full middleware chain.
+Place `RateLimit` before `Auth` when keying by IP (protects the auth check itself from being hammered); use `KeyByUser` after `Auth` instead when you want per-authenticated-user quotas. See [httpkit/README.md](../httpkit/README.md) for the full middleware chain. Behind a load balancer, key by `(*IPResolver).KeyByIP` from `middleware.NewIPResolver(proxyCIDRs...)`: `KeyByIP` alone sees only the balancer address.
 
 ## Limitations
 

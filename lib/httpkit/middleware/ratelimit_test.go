@@ -108,7 +108,7 @@ func TestRateLimit_NilKeyFuncDefaultsToKeyByIP(t *testing.T) {
 	req.RemoteAddr = "203.0.113.1:1234"
 	mw(okHandler()).ServeHTTP(httptest.NewRecorder(), req)
 
-	if l.lastKey != "203.0.113.1:1234" {
+	if l.lastKey != "203.0.113.1" {
 		t.Errorf("key = %q, want the client IP", l.lastKey)
 	}
 }
@@ -117,7 +117,7 @@ func TestKeyByUser_FallsBackToIPWhenUnauthenticated(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/orders", http.NoBody)
 	req.RemoteAddr = "203.0.113.1:1234"
 
-	if got := KeyByUser(req); got != "203.0.113.1:1234" {
+	if got := KeyByUser(req); got != "203.0.113.1" {
 		t.Errorf("KeyByUser() = %q, want the client IP fallback", got)
 	}
 }
@@ -135,7 +135,7 @@ func TestKeyByHeader_FallsBackToIPWhenHeaderAbsent(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/orders", http.NoBody)
 	req.RemoteAddr = "203.0.113.1:1234"
 
-	if got := KeyByHeader("X-Api-Key")(req); got != "203.0.113.1:1234" {
+	if got := KeyByHeader("X-Api-Key")(req); got != "203.0.113.1" {
 		t.Errorf("KeyByHeader() = %q, want the client IP fallback", got)
 	}
 }

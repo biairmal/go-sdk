@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/biairmal/go-sdk/lib/ctxkit"
 	"github.com/biairmal/go-sdk/lib/errorz"
 	"github.com/biairmal/go-sdk/lib/httpkit/handler"
 	"github.com/biairmal/go-sdk/lib/ratelimit"
@@ -21,32 +20,29 @@ const (
 // authenticated user, or a request header.
 type KeyFunc func(r *http.Request) string
 
-// KeyByIP derives the rate-limit key from the request's client IP, honoring
-// X-Forwarded-For / X-Real-IP ahead of RemoteAddr (see clientIP).
+// KeyByIP derives the rate-limit key from the TCP peer's IP address (no port).
+// It ignores X-Forwarded-For and X-Real-IP, which any client can forge. Behind a
+// proxy or load balancer use (*IPResolver).KeyByIP with NewIPResolver, which
+// reads those headers only when the peer is a trusted proxy.
 func KeyByIP(r *http.Request) string {
-	return clientIP(r)
+	return (*IPResolver)(nil).ClientIP(r)
 }
 
 // KeyByUser derives the rate-limit key from the authenticated subject
-// (ctxkit.UserID), falling back to the client IP for unauthenticated
+// (ctxkit.UserID), falling back to the peer IP for unauthenticated
 // requests. Place RateLimit after Auth in the chain so the user id is set.
+// Behind a proxy use (*IPResolver).KeyByUser.
 func KeyByUser(r *http.Request) string {
-	if id := ctxkit.UserID(r.Context()); id != "" {
-		return id
-	}
-	return clientIP(r)
+	return (*IPResolver)(nil).KeyByUser(r)
 }
 
 // KeyByHeader returns a KeyFunc that derives the rate-limit key from the
-// named request header (e.g. an API key), falling back to the client IP when
-// the header is absent.
+// named request header (e.g. an API key), falling back to the peer IP when
+// the header is absent. The header value is chosen by the client, so use it
+// only for a header that is checked elsewhere (for example an API key the
+// auth layer validates). Behind a proxy use (*IPResolver).KeyByHeader.
 func KeyByHeader(name string) KeyFunc {
-	return func(r *http.Request) string {
-		if v := r.Header.Get(name); v != "" {
-			return v
-		}
-		return clientIP(r)
-	}
+	return (*IPResolver)(nil).KeyByHeader(name)
 }
 
 // rateLimitOptions holds the configured RateLimit middleware settings.
