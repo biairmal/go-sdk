@@ -124,6 +124,9 @@ fix it.
 - **Where:** [metrics.go:31](../lib/httpkit/middleware/metrics.go), [metrics.go:60-64](../lib/httpkit/middleware/metrics.go)
 - **Problem:** Each `/orders/42` or random 404 path is a new Prometheus series. Anyone can create unlimited series.
 - **Fix:** Default to `r.Pattern` (read after the handler returns), falling back to `"unmatched"`.
+- **Also:** `PathNormalizer` is called before `next.ServeHTTP`, so a normalizer that reads the router's matched
+  pattern (chi `RoutePattern()`, `r.Pattern`) always sees an empty value. Call it after the handler returns, so a
+  service can follow the README's advice. go-service-template TD-04 works around this until then.
 
 ### [ ] TD-15 Auth validation cache can grow without bound
 - **Where:** [cache.go:77-81](../lib/auth/cache.go)
@@ -213,6 +216,27 @@ fix it.
 - **Fix:** Re-check each claim after TD-02, TD-06 and TD-25 land. Fix the paths. Add one test file for each of the
   three untested packages.
 
+### [ ] TD-36 `handler.Handle` never records the error behind a 5xx
+- **Where:** [handler.go:15-37](../lib/httpkit/handler/handler.go), [writer.go](../lib/httpkit/handler/writer.go)
+- **Problem:** `Handle` writes a masked error envelope and logs nothing (`Recover` logs panics since v0.6.0, but a
+  returned error does not panic). The logging middleware sees only the status. A service that wraps `Handle` with
+  nothing else gets `status=500` in its logs and no cause. Found in go-service-template TD-06.
+- **Fix:** Add an optional, nil-safe `handler.WithLogger(log)` option (libraries do not log by default, per
+  AGENTS.md). With it set, log once at error level for status 500 or more: the error, method, path and the request
+  context's IDs. Never log the response body.
+- **Done when:** a test with a handler that returns a wrapped error finds one error log line with the cause, and a
+  test without the option logs nothing.
+
+### [ ] TD-37 `config.Load` ignores unknown keys
+- **Where:** [config.go](../lib/config/config.go)
+- **Problem:** A key that matches no struct field is dropped without a word. v0.6.0 renamed the auth policy key
+  `default_protected` to `default_public`; a service that kept the old key still loads and the key does nothing
+  (go-service-template TD-16). The same happens for a typo in any key.
+- **Fix:** Add an option, for example `config.Strict()`, that sets mapstructure `ErrorUnused` and returns the unknown
+  key names. Keep the default as is so existing services do not break, and document it in the package README.
+- **Done when:** a test loads a file with an unknown key and gets an error naming it with `Strict()`, and loads
+  cleanly without it.
+
 ---
 
 ## P3 — small items
@@ -233,6 +257,14 @@ fix it.
   ([handler.go:24-28](../lib/httpkit/handler/handler.go))
 - [ ] **TD-35 Compose ports:** Redis and Kafka are published on all interfaces. Bind to `127.0.0.1:`.
   ([docker-compose.integration.yaml](../docker-compose.integration.yaml))
+- [ ] **TD-38 Logging middleware has no skip list:** it writes one Info line per response, so health probes and
+  metrics scrapes fill the log. Add `LoggingOptions.SkipPaths []string` (exact match on the path). Found in
+  go-service-template TD-17. ([logging.go](../lib/httpkit/middleware/logging.go))
+- [ ] **TD-39 Service-token exchange is copied per service:** every service that calls identity's `/v1/internal`
+  needs the client-credentials call, a cache and a refresh margin. go-service-template has its own
+  ([service_token.go](https://github.com/biairmal/go-service-template/blob/main/internal/app/service_token.go)) and
+  feeds it to `authz.WithServiceToken`. Move one tested copy next to `authz` (for example
+  `authz.NewClientCredentials(url, id, secret, opts...)`), with a timeout on its HTTP client.
 
 ### Lean (delete or merge, roughly -100 lines)
 
