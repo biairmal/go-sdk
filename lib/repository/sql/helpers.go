@@ -1,6 +1,7 @@
 package sql
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/biairmal/go-sdk/lib/repository"
@@ -154,13 +155,19 @@ func BuildPaginationClause(
 	return clause, args
 }
 
-// SanitizeColumnName validates and sanitizes column names.
+// columnNameRe is the only shape a column name may take: an identifier, optionally qualified by one table
+// name ("t.col"). Anything else (spaces, operators, quotes, comments) is rejected, not escaped.
+var columnNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$`)
+
+// SanitizeColumnName returns column when it is a plain identifier (optionally "table.column"), or "" when it is
+// anything else. Callers drop or reject a "" result. It is an allow-list: a field name that reaches SQL text
+// must match columnNameRe, so "1=1 OR id" or "id; DROP TABLE x" can never be part of a query.
 func SanitizeColumnName(column string) string {
 	column = strings.TrimSpace(column)
-	if strings.ContainsAny(column, "';\"\\()[]{}") {
+	if !columnNameRe.MatchString(column) {
 		return ""
 	}
-	return strings.Trim(column, ".")
+	return column
 }
 
 // ConvertSQLError converts database-specific errors to repository errors.

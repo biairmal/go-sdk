@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/biairmal/go-sdk/lib/errorz"
 	"github.com/biairmal/go-sdk/lib/logger"
 	"github.com/biairmal/go-sdk/lib/repository"
 	"github.com/biairmal/go-sdk/lib/sqlkit"
@@ -207,6 +208,12 @@ func (r *SQLRepository[TEntity, TID]) Delete(ctx context.Context, id TID) error 
 func (r *SQLRepository[TEntity, TID]) List(
 	ctx context.Context, opts *repository.ListOptions,
 ) (entities []*TEntity, total int64, err error) {
+	if opts == nil {
+		opts = &repository.ListOptions{}
+	}
+	if err := r.checkFields(opts.Filter, opts.Sorts); err != nil {
+		return nil, 0, err
+	}
 	conn := r.GetReadConnection(ctx)
 	query, args := r.buildListQuery(opts)
 	r.logQuery(ctx, query, args)
@@ -236,6 +243,9 @@ func (r *SQLRepository[TEntity, TID]) List(
 
 // Count returns the total number of entities matching the filter.
 func (r *SQLRepository[TEntity, TID]) Count(ctx context.Context, filter repository.Filter) (int64, error) {
+	if err := r.checkFields(filter, nil); err != nil {
+		return 0, err
+	}
 	conn := r.GetReadConnection(ctx)
 	query, args := r.buildCountQuery(filter)
 	r.logQuery(ctx, query, args)
@@ -260,6 +270,24 @@ func (r *SQLRepository[TEntity, TID]) Exists(ctx context.Context, id TID) (bool,
 		return false, ConvertSQLError(err)
 	}
 	return exists, nil
+}
+
+// checkFields rejects any filter or sort field that is not a db-tagged column of the entity. Field names end up
+// in SQL text, so a name the entity does not declare (including anything a client sent) is an error, never
+// silently dropped: dropping a condition would return more rows than the caller asked to keep.
+func (r *SQLRepository[TEntity, TID]) checkFields(filter repository.Filter, sorts []repository.Sort) error {
+	cols := getColumnMapping(r.entityType)
+	for _, c := range filter.Conditions {
+		if _, ok := cols[strings.ToLower(strings.TrimSpace(c.Field))]; !ok {
+			return errorz.BadRequest().WithMessage("repository: unknown filter field")
+		}
+	}
+	for _, s := range sorts {
+		if _, ok := cols[strings.ToLower(strings.TrimSpace(s.Field))]; !ok {
+			return errorz.BadRequest().WithMessage("repository: unknown sort field")
+		}
+	}
+	return nil
 }
 
 func (r *SQLRepository[TEntity, TID]) buildListQuery(opts *repository.ListOptions) (listQuery string, listArgs []any) {
