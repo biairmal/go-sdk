@@ -49,7 +49,9 @@ These are the consumer's job. The packages allow the unsafe setting because some
   issued for another service is accepted.
 - **`auth`: use RS256 with JWKS across services.** HS256 shares one secret between the issuer and every validator,
   so any validator can mint tokens. Keep HS256 to a single process.
-- **`auth`: keep `Policy` default-protected.** List public routes explicitly instead of listing protected ones.
+- **`auth`: keep unmatched routes protected (the default).** List public routes explicitly instead of listing protected
+  ones. A missing `default_protected` key and a zero `auth.Policy{}` both protect every route no rule matches; only an
+  explicit `default_protected: false` (or `Policy{DefaultPublic: true}`) opens them.
 - **`authz`: never use `NewNoOp()` outside tests and local development.** It allows every check.
 - **`authz`: scope data by the token's tenant.** Use `authz.TenantID(ctx)` in every query on tenant-owned rows, never
   a tenant ID from the request.

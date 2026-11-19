@@ -18,23 +18,24 @@ type Rule struct {
 // Policy decides whether a given request must be authenticated. It is built
 // from configuration (Config.Policy) and passed to the HTTP middleware.
 type Policy struct {
-	// DefaultProtected is the verdict when no rule matches. When true, an
-	// unmatched request requires authentication.
-	DefaultProtected bool `mapstructure:"default_protected"`
+	// DefaultPublic is the verdict when no rule matches. The zero value is false, so an unmatched request
+	// requires authentication: a Policy that forgets this field fails closed. Set it true only to list the
+	// protected routes instead of the public ones.
+	DefaultPublic bool `mapstructure:"default_public"`
 	// Rules are evaluated in order; the first match decides.
 	Rules []Rule `mapstructure:"rules"`
 }
 
 // IsProtected reports whether a request for method and path requires
 // authentication. The first matching rule decides (protected = !rule.Public);
-// with no match the result is DefaultProtected.
+// with no match the result is protected unless DefaultPublic is set.
 func (p Policy) IsProtected(method, path string) bool {
 	for _, r := range p.Rules {
 		if r.matches(method, path) {
 			return !r.Public
 		}
 	}
-	return p.DefaultProtected
+	return !p.DefaultPublic
 }
 
 // matches reports whether r applies to a request for method and path.

@@ -40,7 +40,7 @@ func okHandler() http.Handler {
 
 func TestAuthPublicRouteBypassesValidator(t *testing.T) {
 	v := &fakeValidator{}
-	policy := auth.Policy{DefaultProtected: true, Rules: []auth.Rule{{Pattern: "/health", Public: true}}}
+	policy := auth.Policy{Rules: []auth.Rule{{Pattern: "/health", Public: true}}}
 	mw := Auth(v, WithPolicy(policy))
 
 	rec := httptest.NewRecorder()

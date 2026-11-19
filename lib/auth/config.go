@@ -26,8 +26,10 @@ const (
 type Config struct {
 	// Mode selects the validator: "local", "remote", or "func".
 	Mode string `mapstructure:"mode"`
-	// DefaultProtected is the route-policy default when no rule matches.
-	DefaultProtected bool `mapstructure:"default_protected"`
+	// DefaultProtected is the route-policy default when no rule matches. Leave it unset (or true) to require
+	// authentication for every route no rule matches; only an explicit false makes unmatched routes public.
+	// It is a pointer so that a missing key means "protected" instead of the bool zero value, false.
+	DefaultProtected *bool `mapstructure:"default_protected"`
 	// Rules are the route-policy rules (first match wins).
 	Rules []Rule `mapstructure:"rules"`
 	// Local configures the in-process JWT validator (mode "local").
@@ -76,14 +78,13 @@ type IssuerConfig struct {
 }
 
 // DefaultConfig returns a Config with sane defaults: local HS256 validation,
-// everything protected by default, a 15-minute HS256 issuer, and remote
+// everything protected by default (DefaultProtected unset), a 15-minute HS256 issuer, and remote
 // defaults matching a bearer-header verification call.
 func DefaultConfig() Config {
 	return Config{
-		Mode:             ModeLocal,
-		DefaultProtected: true,
-		Local:            LocalConfig{Algorithm: AlgorithmHS256},
-		Issuer:           IssuerConfig{DefaultTTL: defaultIssuerTTL},
+		Mode:   ModeLocal,
+		Local:  LocalConfig{Algorithm: AlgorithmHS256},
+		Issuer: IssuerConfig{DefaultTTL: defaultIssuerTTL},
 		Remote: RemoteConfig{
 			Method:  defaultRemoteMethod,
 			Timeout: defaultRemoteTimeout,
@@ -96,7 +97,7 @@ func DefaultConfig() Config {
 // Policy returns the route policy derived from the config's DefaultProtected
 // and Rules fields.
 func (c *Config) Policy() Policy {
-	return Policy{DefaultProtected: c.DefaultProtected, Rules: c.Rules}
+	return Policy{DefaultPublic: c.DefaultProtected != nil && !*c.DefaultProtected, Rules: c.Rules}
 }
 
 // Validate checks that Config is internally consistent for its selected mode.
