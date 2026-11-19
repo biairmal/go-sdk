@@ -111,7 +111,7 @@ tr := tracer.NewNoOp() // same Tracer interface; every call is a no-op
 
 ### SQL tracing (consumer-side)
 
-`sqlkit` itself is not instrumented. To trace SQL calls, register an [`otelsql`](https://github.com/XSAM/otelsql) driver in your application and open `sqlkit` against that driver name — no `sqlkit` change is required.
+`sqlkit` itself is not instrumented. To trace SQL calls, register a driver wrapped by [`tracesql.WrapDriver`](tracesql/README.md) and open `sqlkit` against that driver name — no `sqlkit` change is required.
 
 ## Options
 
