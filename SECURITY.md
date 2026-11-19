@@ -75,7 +75,8 @@ These are the consumer's job. The packages allow the unsafe setting because some
   text (`db.query.text`) but not arguments, so a value inlined into the query string reaches the trace backend.
 - **`tracer.Transport`: name spans by route pattern.** A `WithSpanName` built from the raw path puts ids (and
   anything else in the path) into span names.
-- **`sqlkit`: set `ssl_mode` to `require` or stricter** when the database is on another host.
+- **`sqlkit`: set `ssl_mode` to `require` or stricter** when the database is on another host. An empty `ssl_mode` uses the
+  driver default, which for MySQL is no TLS. `ssl_mode` now also applies to MySQL (as the driver's `tls` setting).
 - **`config`: keep secrets in the environment, not in committed YAML.** Reference them as `${VAR}`.
 
 ## Known limitations
