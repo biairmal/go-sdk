@@ -15,8 +15,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Mode != ModeLocal {
 		t.Errorf("Mode = %q, want %q", cfg.Mode, ModeLocal)
 	}
-	if !cfg.DefaultProtected {
-		t.Error("DefaultProtected = false, want true")
+	if !cfg.Policy().IsProtected("GET", "/anything") {
+		t.Error("default config leaves unmatched routes public, want protected")
 	}
 	if cfg.Local.Algorithm != AlgorithmHS256 {
 		t.Errorf("Local.Algorithm = %q, want %q", cfg.Local.Algorithm, AlgorithmHS256)
@@ -148,7 +148,7 @@ func TestIssuerFromConfigRequiresAlgorithm(t *testing.T) {
 }
 
 func TestConfigPolicy(t *testing.T) {
-	cfg := Config{DefaultProtected: true, Rules: []Rule{{Pattern: "/health", Public: true}}}
+	cfg := Config{Rules: []Rule{{Pattern: "/health", Public: true}}}
 	pol := cfg.Policy()
 	if pol.IsProtected("GET", "/health") {
 		t.Error("expected /health to be public via policy")

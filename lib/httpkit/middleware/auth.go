@@ -39,7 +39,7 @@ func WithPolicy(p auth.Policy) AuthOption {
 // when a remote identity service is unreachable). A nil validator on a
 // protected route fails closed with 500.
 func Auth(v auth.Validator, opts ...AuthOption) func(http.Handler) http.Handler {
-	options := authOptions{policy: auth.Policy{DefaultProtected: true}}
+	options := authOptions{policy: auth.Policy{}}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&options)

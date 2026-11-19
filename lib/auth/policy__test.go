@@ -1,6 +1,11 @@
 package auth
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/spf13/viper"
+)
 
 func TestMatchPattern(t *testing.T) {
 	tests := []struct {
@@ -35,7 +40,6 @@ func TestMatchPattern(t *testing.T) {
 
 func TestPolicyIsProtected(t *testing.T) {
 	policy := Policy{
-		DefaultProtected: true,
 		Rules: []Rule{
 			{Pattern: "/health", Public: true},
 			{Pattern: "/swagger/**", Public: true},
@@ -68,8 +72,53 @@ func TestPolicyIsProtected(t *testing.T) {
 }
 
 func TestPolicyDefaultPublic(t *testing.T) {
-	policy := Policy{DefaultProtected: false}
+	policy := Policy{DefaultPublic: true}
 	if policy.IsProtected("GET", "/anything") {
 		t.Error("expected default-public policy to leave requests unprotected")
+	}
+}
+
+// The zero Policy must protect everything: forgetting a field may never open the API.
+func TestPolicyZeroValueIsProtected(t *testing.T) {
+	var policy Policy
+	if !policy.IsProtected("GET", "/anything") {
+		t.Error("zero Policy leaves an unmatched route public, want protected")
+	}
+	withRules := Policy{Rules: []Rule{{Pattern: "/health", Public: true}}}
+	if !withRules.IsProtected("GET", "/orders") {
+		t.Error("Policy with only rules leaves an unmatched route public, want protected")
+	}
+	if withRules.IsProtected("GET", "/health") {
+		t.Error("rule for /health did not make it public")
+	}
+}
+
+// A YAML file that omits default_protected is the case that used to fail open.
+func TestConfigPolicyFromYAML_DefaultProtected(t *testing.T) {
+	tests := []struct {
+		name          string
+		yaml          string
+		wantProtected bool
+	}{
+		{name: "key missing", yaml: "mode: local\n", wantProtected: true},
+		{name: "explicit true", yaml: "default_protected: true\n", wantProtected: true},
+		{name: "explicit false", yaml: "default_protected: false\n", wantProtected: false},
+		{name: "rules but no key", yaml: "rules:\n  - pattern: /health\n    public: true\n", wantProtected: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := viper.New()
+			v.SetConfigType("yaml")
+			if err := v.ReadConfig(strings.NewReader(tt.yaml)); err != nil {
+				t.Fatal(err)
+			}
+			var cfg Config
+			if err := v.Unmarshal(&cfg); err != nil {
+				t.Fatal(err)
+			}
+			if got := cfg.Policy().IsProtected("GET", "/unmatched"); got != tt.wantProtected {
+				t.Errorf("IsProtected = %v, want %v", got, tt.wantProtected)
+			}
+		})
 	}
 }
