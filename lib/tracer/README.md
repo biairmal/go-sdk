@@ -11,6 +11,7 @@ Services need to see how a request flows across process boundaries — which dow
 - **Interface-first**: `Tracer`/`Span` hide the OTel SDK; swap backends (`NewOTel`, `NewNoOp`) without touching call sites.
 - **OTLP/gRPC export**: `NewOTel` ships spans to any OTLP-compatible collector (Tempo, Jaeger, an OTel Collector).
 - **W3C propagation**: `httpkit/middleware.Tracing` extracts/joins the caller's trace via the standard `traceparent` header.
+- **Traced HTTP client**: `Transport` gives an `http.Client` a client span per call and injects `traceparent`.
 - **OTel globals**: `NewOTel` installs its provider and the W3C propagator as the OTel globals (`otel.SetTracerProvider`, `otel.SetTextMapPropagator`), so OTel instrumentation libraries (`otelsql`, `otelhttp`) export through it and join the same traces. Create one OTel tracer per process.
 - **`ctxkit` integration**: every started span's trace id is published via `ctxkit.WithTraceID`, so it shows up in logs automatically.
 - **Trace id in responses**: `middleware.Tracing` sets the `X-Trace-Id` response header (`middleware.TraceIDHeader`), and the `httpkit/handler` writers copy it into the envelope's `trace_id`, so a client or a bug report can jump straight to the trace. Neither appears when the tracer gives no id (`NoOp`). Browsers can read the header only if your CORS config lists it in `Access-Control-Expose-Headers`.
@@ -71,6 +72,21 @@ handler := middleware.Chain(mux,
 Place `Tracing` after `RequestID`/`Correlation` and before `Logging` so the trace id is available to the request logger.
 
 The span is named `METHOD /raw/path`. To name it by route pattern (`GET /v1/notes/{id}`, low cardinality) and set `http.route`, pass `middleware.WithRouteFunc`. With chi, mount `Tracing` with `r.Use` and read `chi.RouteContext(r.Context()).RoutePattern()`. Every request span also carries `http.request.method`, `url.path` and `http.response.status_code`.
+
+### Outbound HTTP calls
+
+`tracer.Transport` wraps an `http.RoundTripper` so each call gets a client span and carries `traceparent`; the called service then joins this trace.
+
+```go
+client := &http.Client{
+    Timeout:   10 * time.Second,
+    Transport: tracer.Transport(tr, nil, tracer.WithSpanName(func(r *http.Request) string {
+        return "identity " + r.Method + " /v1/internal/roles/{id}" // a pattern, never the raw path
+    })),
+}
+```
+
+The default span name is `METHOD host`. A transport error or a 5xx marks the span failed; a 4xx does not. Headers, query strings and bodies are never recorded.
 
 ### Custom spans and attributes
 
