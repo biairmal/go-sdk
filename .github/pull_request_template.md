@@ -33,9 +33,9 @@ Write facts in present tense with exact names and codes. Delete these comments.
 
 <!-- Only when an exported symbol was added, changed or removed. A breaking change also gets `!` in the title. -->
 - Old and new signatures; who must change their code (go-identity, go-service-template).
-- New exported interface: `//go:generate mockgen` added and `make mocks` output committed.
+- New or changed mocked interface: `//go:generate mockgen` in place and `make mocks` output committed.
 - Package `README.md` and the AGENTS.md package map updated.
-- Release: the version tag this needs (`v0.3.0`), or "none".
+- Release: the version tag this needs (`v0.3.0`, plus `mocks/v0.3.0` if `mocks/` changed), or "none".
 
 ### Verification
 
